@@ -1,10 +1,7 @@
 import mongoose from 'mongoose'
 
-if (!process.env.MONGODB_URI) {
-  throw new Error('Please add your MONGODB_URI to .env.local')
-}
-
-const MONGODB_URI: string = process.env.MONGODB_URI
+// Only validate MONGODB_URI at runtime (not during build)
+const MONGODB_URI: string = process.env.MONGODB_URI || ''
 
 interface MongooseCache {
   conn: typeof mongoose | null
@@ -25,6 +22,11 @@ if (!global.mongooseCache) {
 }
 
 async function connectDB() {
+  // Validate MONGODB_URI at runtime
+  if (!MONGODB_URI) {
+    throw new Error('Please add your MONGODB_URI to environment variables')
+  }
+
   if (cached.conn) {
     return cached.conn
   }
