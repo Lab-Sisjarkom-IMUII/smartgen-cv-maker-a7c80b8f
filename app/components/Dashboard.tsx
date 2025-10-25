@@ -14,7 +14,8 @@ import {
   Edit,
   Sparkles,
   Save,
-  Check
+  Check,
+  History
 } from 'lucide-react'
 import AIChat from './AIChat'
 import CVBuilder from './CVBuilder'
@@ -22,6 +23,7 @@ import TemplateSelector from './TemplateSelector'
 import CVPreview from './CVPreview'
 import AIPhotoFormatterFree from './AIPhotoFormatterFree'
 import CVSelector from './CVSelector'
+import CVHistoryPanel from './CVHistoryPanel'
 import { useCVData } from '@/hooks/useCVData'
 
 type TabType = 'chat' | 'builder' | 'templates' | 'preview' | 'photo'
@@ -34,6 +36,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const { data: session } = useSession()
   const [activeTab, setActiveTab] = useState<TabType>('chat')
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+  const [showHistory, setShowHistory] = useState(false)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Use MongoDB CV data hook
@@ -202,51 +205,66 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               })}
             </nav>
             
-            {/* CV Selector - Show on builder tab */}
+            {/* CV Selector & History - Show on builder tab */}
             {session?.user?.email && activeTab === 'builder' && (
-              <CVSelector
-                cvs={allCVs}
-                currentCV={cvData}
-                onSelect={(cv) => {
-                  setCVData(cv as any)
-                  localStorage.setItem('currentCV', JSON.stringify(cv))
-                }}
-                onCreateNew={async () => {
-                  const newCV = await createCV({
-                    title: `CV - ${new Date().toLocaleDateString()}`,
-                    personalInfo: {
-                      fullName: session?.user?.name || '',
-                      email: session?.user?.email || '',
-                    },
-                    experiences: [],
-                    education: [],
-                    skills: [],
-                    template: {
-                      id: 'modern',
-                      name: 'Modern',
-                    },
-                  })
-                  if (newCV) {
-                    setCVData(newCV)
-                    localStorage.setItem('currentCV', JSON.stringify(newCV))
-                  }
-                }}
-                onDelete={async (id) => {
-                  const success = await deleteCV(id)
-                  if (success && cvData?._id === id) {
-                    // If deleted current CV, load first available CV or null
-                    const remainingCVs = allCVs.filter(cv => cv._id !== id)
-                    if (remainingCVs.length > 0) {
-                      setCVData(remainingCVs[0])
-                      localStorage.setItem('currentCV', JSON.stringify(remainingCVs[0]))
-                    } else {
-                      setCVData(null)
-                      localStorage.removeItem('currentCV')
+              <div className="flex items-center space-x-3">
+                {/* History Button */}
+                {cvData?._id && (
+                  <button
+                    onClick={() => setShowHistory(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    title="View version history"
+                  >
+                    <History className="w-4 h-4 text-gray-600" />
+                    <span className="text-sm font-medium text-gray-700">History</span>
+                  </button>
+                )}
+                
+                {/* CV Selector */}
+                <CVSelector
+                  cvs={allCVs}
+                  currentCV={cvData}
+                  onSelect={(cv) => {
+                    setCVData(cv as any)
+                    localStorage.setItem('currentCV', JSON.stringify(cv))
+                  }}
+                  onCreateNew={async () => {
+                    const newCV = await createCV({
+                      title: `CV - ${new Date().toLocaleDateString()}`,
+                      personalInfo: {
+                        fullName: session?.user?.name || '',
+                        email: session?.user?.email || '',
+                      },
+                      experiences: [],
+                      education: [],
+                      skills: [],
+                      template: {
+                        id: 'modern',
+                        name: 'Modern',
+                      },
+                    })
+                    if (newCV) {
+                      setCVData(newCV)
+                      localStorage.setItem('currentCV', JSON.stringify(newCV))
                     }
-                  }
-                }}
-                isLoading={isLoading}
-              />
+                  }}
+                  onDelete={async (id) => {
+                    const success = await deleteCV(id)
+                    if (success && cvData?._id === id) {
+                      // If deleted current CV, load first available CV or null
+                      const remainingCVs = allCVs.filter(cv => cv._id !== id)
+                      if (remainingCVs.length > 0) {
+                        setCVData(remainingCVs[0])
+                        localStorage.setItem('currentCV', JSON.stringify(remainingCVs[0]))
+                      } else {
+                        setCVData(null)
+                        localStorage.removeItem('currentCV')
+                      }
+                    }
+                  }}
+                  isLoading={isLoading}
+                />
+              </div>
             )}
           </div>
         </div>
@@ -285,6 +303,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           )}
         </motion.div>
       </main>
+
+      {/* History Panel Modal */}
+      {showHistory && cvData?._id && (
+        <CVHistoryPanel
+          cvId={cvData._id}
+          onRestore={(restoredData) => {
+            setCVData(restoredData)
+            localStorage.setItem('currentCV', JSON.stringify(restoredData))
+          }}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </div>
   )
 }

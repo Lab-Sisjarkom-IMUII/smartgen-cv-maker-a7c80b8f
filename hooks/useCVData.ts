@@ -142,6 +142,10 @@ export function useCVData(cvId?: string) {
         setCVData(result.data)
         setLastSaved(new Date())
         await fetchAllCVs() // Refresh list
+        
+        // Create history snapshot after successful update
+        await createSnapshot(id, 'Auto-save')
+        
         return true
       } else {
         toast.error(result.error || 'Gagal menyimpan CV')
@@ -185,6 +189,20 @@ export function useCVData(cvId?: string) {
       return false
     }
   }, [session, fetchAllCVs])
+
+  // Create history snapshot
+  const createSnapshot = useCallback(async (cvId: string, description: string) => {
+    try {
+      await fetch(`/api/cv/${cvId}/history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ changeDescription: description }),
+      })
+      // Silent - don't show toast for auto-snapshots
+    } catch (error) {
+      console.error('Error creating snapshot:', error)
+    }
+  }, [])
 
   // Auto-save function (debounced)
   const autoSave = useCallback(async (data: CVData) => {
