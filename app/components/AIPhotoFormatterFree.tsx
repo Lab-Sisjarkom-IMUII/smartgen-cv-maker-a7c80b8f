@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'react-hot-toast'
 import { Upload, Download, Sparkles, Loader2, Image as ImageIcon, Check } from 'lucide-react'
-import * as backgroundRemoval from '@imgly/background-removal'
 
 type BackgroundColor = {
   name: string
@@ -26,7 +25,23 @@ export default function AIPhotoFormatterFree() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedColor, setSelectedColor] = useState<BackgroundColor>(BACKGROUND_COLORS[0])
   const [progress, setProgress] = useState(0)
+  const [bgRemovalModule, setBgRemovalModule] = useState<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Load background removal library dynamically (client-side only)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('@imgly/background-removal')
+        .then((module) => {
+          setBgRemovalModule(module)
+          console.log('Background removal library loaded successfully')
+        })
+        .catch((err) => {
+          console.error('Failed to load background removal library:', err)
+          toast.error('Gagal memuat library AI. Silakan refresh halaman.')
+        })
+    }
+  }, [])
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -63,6 +78,11 @@ export default function AIPhotoFormatterFree() {
       return
     }
 
+    if (!bgRemovalModule) {
+      toast.error('Library AI belum siap. Silakan tunggu sebentar dan coba lagi.')
+      return
+    }
+
     setIsProcessing(true)
     setProgress(0)
     
@@ -78,7 +98,7 @@ export default function AIPhotoFormatterFree() {
       }, 1000)
 
       // Remove background using @imgly/background-removal
-      const imageBlob = await backgroundRemoval.removeBackground(previewUrl, {
+      const imageBlob = await bgRemovalModule.removeBackground(previewUrl, {
         progress: (key: string, current: number, total: number) => {
           const percent = Math.round((current / total) * 100)
           setProgress(Math.min(percent, 90))
@@ -172,6 +192,12 @@ export default function AIPhotoFormatterFree() {
           <p className="text-sm text-gray-500 mt-2">
             ✨ Proses di browser Anda, tanpa biaya API, tanpa upload ke server!
           </p>
+          {!bgRemovalModule && (
+            <div className="mt-4 inline-flex items-center space-x-2 text-blue-600 bg-blue-50 px-4 py-2 rounded-full">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm font-medium">Memuat AI library...</span>
+            </div>
+          )}
         </motion.div>
 
         {/* Upload Section */}
@@ -313,13 +339,18 @@ export default function AIPhotoFormatterFree() {
                   <>
                     <button
                       onClick={processImage}
-                      disabled={isProcessing}
+                      disabled={isProcessing || !bgRemovalModule}
                       className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 text-white py-4 px-6 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     >
                       {isProcessing ? (
                         <>
                           <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                           Memproses...
+                        </>
+                      ) : !bgRemovalModule ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Memuat AI...
                         </>
                       ) : (
                         <>
