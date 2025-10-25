@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import { 
@@ -33,6 +33,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const { data: session } = useSession()
   const [activeTab, setActiveTab] = useState<TabType>('chat')
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Use MongoDB CV data hook
   const {
@@ -46,6 +47,28 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     updateCV,
     autoSave,
   } = useCVData()
+
+  // Load active tab from localStorage on mount
+  useEffect(() => {
+    const savedTab = localStorage.getItem('activeTab')
+    if (savedTab) {
+      setActiveTab(savedTab as TabType)
+    }
+  }, [])
+
+  // Save active tab to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab)
+  }, [activeTab])
+
+  // Cleanup auto-save timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const handleLogout = async () => {
     // Clear localStorage
@@ -73,9 +96,20 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const handleCVDataUpdate = (data: any) => {
     setCVData(data)
     
-    // Auto-save to MongoDB when data changes
+    // Save to localStorage immediately (instant backup)
+    localStorage.setItem('currentCV', JSON.stringify(data))
+    
+    // Debounced auto-save to MongoDB (after 2 seconds of no changes)
     if (data && session?.user?.email) {
-      autoSave(data)
+      // Clear existing timeout
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+      }
+      
+      // Set new timeout
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        autoSave(data)
+      }, 2000) // Save after 2 seconds of inactivity
     }
   }
 

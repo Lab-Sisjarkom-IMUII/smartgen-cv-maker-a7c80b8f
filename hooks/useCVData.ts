@@ -25,6 +25,19 @@ export function useCVData(cvId?: string) {
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
 
+  // Load from localStorage immediately on mount (faster)
+  useEffect(() => {
+    const savedCV = localStorage.getItem('currentCV')
+    if (savedCV) {
+      try {
+        const parsed = JSON.parse(savedCV)
+        setCVData(parsed)
+      } catch (error) {
+        console.error('Error parsing saved CV from localStorage:', error)
+      }
+    }
+  }, [])
+
   // Fetch all CVs for current user
   const fetchAllCVs = useCallback(async () => {
     if (!session?.user?.email) return
