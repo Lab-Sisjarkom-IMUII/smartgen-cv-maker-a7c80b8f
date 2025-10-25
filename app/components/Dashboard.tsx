@@ -34,7 +34,14 @@ interface DashboardProps {
 
 export default function Dashboard({ onLogout }: DashboardProps) {
   const { data: session } = useSession()
-  const [activeTab, setActiveTab] = useState<TabType>('chat')
+  // Initialize activeTab from localStorage immediately
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    if (typeof window !== 'undefined') {
+      const savedTab = localStorage.getItem('activeTab')
+      return (savedTab as TabType) || 'chat'
+    }
+    return 'chat'
+  })
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
   const [showHistory, setShowHistory] = useState(false)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -53,14 +60,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     autoSave,
     fetchCV,
   } = useCVData()
-
-  // Load active tab from localStorage on mount
-  useEffect(() => {
-    const savedTab = localStorage.getItem('activeTab')
-    if (savedTab) {
-      setActiveTab(savedTab as TabType)
-    }
-  }, [])
 
   // Save active tab to localStorage when it changes
   useEffect(() => {
