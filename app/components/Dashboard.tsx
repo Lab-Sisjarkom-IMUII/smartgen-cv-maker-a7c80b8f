@@ -21,6 +21,7 @@ import CVBuilder from './CVBuilder'
 import TemplateSelector from './TemplateSelector'
 import CVPreview from './CVPreview'
 import AIPhotoFormatterFree from './AIPhotoFormatterFree'
+import CVSelector from './CVSelector'
 import { useCVData } from '@/hooks/useCVData'
 
 type TabType = 'chat' | 'builder' | 'templates' | 'preview' | 'photo'
@@ -45,7 +46,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     lastSaved,
     createCV,
     updateCV,
+    deleteCV,
     autoSave,
+    fetchCV,
   } = useCVData()
 
   // Load active tab from localStorage on mount
@@ -199,12 +202,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               })}
             </nav>
             
-            {/* New CV Button */}
+            {/* CV Selector - Show on builder tab */}
             {session?.user?.email && activeTab === 'builder' && (
-              <button
-                onClick={async () => {
+              <CVSelector
+                cvs={allCVs}
+                currentCV={cvData}
+                onSelect={(cv) => {
+                  setCVData(cv as any)
+                  localStorage.setItem('currentCV', JSON.stringify(cv))
+                }}
+                onCreateNew={async () => {
                   const newCV = await createCV({
-                    title: 'New CV',
+                    title: `CV - ${new Date().toLocaleDateString()}`,
                     personalInfo: {
                       fullName: session?.user?.name || '',
                       email: session?.user?.email || '',
@@ -219,13 +228,25 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                   })
                   if (newCV) {
                     setCVData(newCV)
+                    localStorage.setItem('currentCV', JSON.stringify(newCV))
                   }
                 }}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New CV</span>
-              </button>
+                onDelete={async (id) => {
+                  const success = await deleteCV(id)
+                  if (success && cvData?._id === id) {
+                    // If deleted current CV, load first available CV or null
+                    const remainingCVs = allCVs.filter(cv => cv._id !== id)
+                    if (remainingCVs.length > 0) {
+                      setCVData(remainingCVs[0])
+                      localStorage.setItem('currentCV', JSON.stringify(remainingCVs[0]))
+                    } else {
+                      setCVData(null)
+                      localStorage.removeItem('currentCV')
+                    }
+                  }
+                }}
+                isLoading={isLoading}
+              />
             )}
           </div>
         </div>
