@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import { 
@@ -12,13 +12,16 @@ import {
   Plus,
   Eye,
   Edit,
-  Sparkles
+  Sparkles,
+  Save,
+  Check
 } from 'lucide-react'
 import AIChat from './AIChat'
 import CVBuilder from './CVBuilder'
 import TemplateSelector from './TemplateSelector'
 import CVPreview from './CVPreview'
 import AIPhotoFormatterFree from './AIPhotoFormatterFree'
+import { useCVData } from '@/hooks/useCVData'
 
 type TabType = 'chat' | 'builder' | 'templates' | 'preview' | 'photo'
 
@@ -29,8 +32,20 @@ interface DashboardProps {
 export default function Dashboard({ onLogout }: DashboardProps) {
   const { data: session } = useSession()
   const [activeTab, setActiveTab] = useState<TabType>('chat')
-  const [cvData, setCvData] = useState<any>(null)
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+  
+  // Use MongoDB CV data hook
+  const {
+    cvData,
+    setCVData,
+    allCVs,
+    isLoading,
+    isSaving,
+    lastSaved,
+    createCV,
+    updateCV,
+    autoSave,
+  } = useCVData()
 
   const handleLogout = async () => {
     // Clear localStorage
@@ -56,7 +71,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   const handleCVDataUpdate = (data: any) => {
-    setCvData(data)
+    setCVData(data)
+    
+    // Auto-save to MongoDB when data changes
+    if (data && session?.user?.email) {
+      autoSave(data)
+    }
   }
 
   const handleTemplateSelect = (template: string) => {
@@ -80,6 +100,25 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* Save Status Indicator */}
+              {session?.user?.email && (
+                <div className="flex items-center space-x-2">
+                  {isSaving ? (
+                    <>
+                      <Save className="w-4 h-4 text-blue-500 animate-pulse" />
+                      <span className="text-xs text-gray-500">Saving...</span>
+                    </>
+                  ) : lastSaved ? (
+                    <>
+                      <Check className="w-4 h-4 text-green-500" />
+                      <span className="text-xs text-gray-500">
+                        Saved {new Date(lastSaved).toLocaleTimeString()}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              )}
+              
               <div className="flex items-center space-x-3">
                 <img
                   src={session?.user?.image || '/default-avatar.png'}
@@ -105,25 +144,56 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       {/* Navigation Tabs */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-8">
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id as TabType)}
-                  className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-primary-500 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                </button>
-              )
-            })}
-          </nav>
+          <div className="flex justify-between items-center">
+            <nav className="flex space-x-8">
+              {tabs.map((tab) => {
+                const Icon = tab.icon
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id as TabType)}
+                    className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                      activeTab === tab.id
+                        ? 'border-primary-500 text-primary-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{tab.label}</span>
+                  </button>
+                )
+              })}
+            </nav>
+            
+            {/* New CV Button */}
+            {session?.user?.email && activeTab === 'builder' && (
+              <button
+                onClick={async () => {
+                  const newCV = await createCV({
+                    title: 'New CV',
+                    personalInfo: {
+                      fullName: session?.user?.name || '',
+                      email: session?.user?.email || '',
+                    },
+                    experiences: [],
+                    education: [],
+                    skills: [],
+                    template: {
+                      id: 'modern',
+                      name: 'Modern',
+                    },
+                  })
+                  if (newCV) {
+                    setCVData(newCV)
+                  }
+                }}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New CV</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
