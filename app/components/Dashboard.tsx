@@ -11,14 +11,16 @@ import {
   LogOut,
   Plus,
   Eye,
-  Edit
+  Edit,
+  Sparkles
 } from 'lucide-react'
 import AIChat from './AIChat'
 import CVBuilder from './CVBuilder'
 import TemplateSelector from './TemplateSelector'
 import CVPreview from './CVPreview'
+import AIPhotoFormatterFree from './AIPhotoFormatterFree'
 
-type TabType = 'chat' | 'builder' | 'templates' | 'preview'
+type TabType = 'chat' | 'builder' | 'templates' | 'preview' | 'photo'
 
 interface DashboardProps {
   onLogout?: () => void
@@ -45,6 +47,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     { id: 'chat', label: 'AI Assistant', icon: MessageSquare },
     { id: 'builder', label: 'CV Builder', icon: FileText },
     { id: 'templates', label: 'Templates', icon: Eye },
+    { id: 'photo', label: 'AI Photo', icon: Sparkles },
     { id: 'preview', label: 'Preview', icon: Download },
   ]
 
@@ -146,6 +149,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           
           {activeTab === 'templates' && (
             <TemplateSelector onTemplateSelect={handleTemplateSelect} />
+          )}
+          
+          {activeTab === 'photo' && (
+            <AIPhotoFormatterFree />
           )}
           
           {activeTab === 'preview' && (
