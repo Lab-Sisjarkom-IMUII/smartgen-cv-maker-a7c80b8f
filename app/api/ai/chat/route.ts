@@ -6,8 +6,49 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 }) : null
 
+// Rate limiting configuration
+const RATE_LIMIT = {
+  maxRequestsPerMinute: 10,  // Max 10 requests per minute per user
+  maxTokensPerRequest: 500,   // Limit response length to save cost
+  maxContextMessages: 5,      // Only keep last 5 messages for context
+}
+
+// Simple in-memory rate limiting (for production, use Redis/database)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const userLimit = rateLimitMap.get(ip)
+
+  if (!userLimit || now > userLimit.resetTime) {
+    // Reset or create new limit
+    rateLimitMap.set(ip, { count: 1, resetTime: now + 60000 }) // 1 minute
+    return true
+  }
+
+  if (userLimit.count >= RATE_LIMIT.maxRequestsPerMinute) {
+    return false // Rate limit exceeded
+  }
+
+  userLimit.count++
+  return true
+}
+
 export async function POST(request: NextRequest) {
   try {
+    // Get user IP for rate limiting
+    const ip = request.headers.get('x-forwarded-for') || 
+               request.headers.get('x-real-ip') || 
+               'unknown'
+
+    // Check rate limit
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: 'Terlalu banyak request. Tunggu sebentar ya! ⏳' },
+        { status: 429 }
+      )
+    }
+
     const body = await request.json()
     const { message, conversationHistory } = body
 
@@ -15,6 +56,9 @@ export async function POST(request: NextRequest) {
 
     // Check if OpenAI is available
     if (openai && process.env.OPENAI_API_KEY) {
+      // Limit conversation history to save tokens and cost
+      const limitedHistory = conversationHistory.slice(-RATE_LIMIT.maxContextMessages)
+      
       // Create conversation context for OpenAI
       const messages = [
         {
@@ -26,12 +70,12 @@ export async function POST(request: NextRequest) {
 4. Berbicara dalam bahasa Indonesia yang ramah dan profesional
 
 Format respons:
-- Berikan saran yang konstruktif
+- Berikan saran yang konstruktif dan ringkas
 - Jika ada informasi CV yang lengkap, ekstrak dan struktur data tersebut
 - Tanyakan detail yang kurang jika diperlukan
 - Berikan tips untuk membuat CV yang menarik`
         },
-        ...conversationHistory.map((msg: any) => ({
+        ...limitedHistory.map((msg: any) => ({
           role: msg.role,
           content: msg.content
         })),
@@ -42,9 +86,9 @@ Format respons:
       ]
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-3.5-turbo',  // Use GPT-3.5 (cheaper than GPT-4)
         messages: messages as any,
-        max_tokens: 1000,
+        max_tokens: RATE_LIMIT.maxTokensPerRequest,  // Limit response length
         temperature: 0.7,
       })
 
