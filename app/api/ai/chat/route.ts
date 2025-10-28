@@ -98,27 +98,50 @@ Format respons:
       response = generateFallbackResponse(message)
     }
 
-    // Try to extract CV data from the conversation
+    // Try to extract CV data from the entire conversation history
     let cvData = null
-    if (message.toLowerCase().includes('nama') || 
-        message.toLowerCase().includes('pengalaman') || 
-        message.toLowerCase().includes('pendidikan') || 
-        message.toLowerCase().includes('skill')) {
-      
-      // Simple extraction logic - in a real app, you'd use more sophisticated NLP
-      cvData = {
+    const fullConversation = conversationHistory
+      .map((msg: any) => msg.content)
+      .join(' ') + ' ' + message
+    
+    // Check if there's enough information to extract
+    const hasRelevantInfo = 
+      fullConversation.toLowerCase().includes('nama') || 
+      fullConversation.toLowerCase().includes('saya') ||
+      fullConversation.toLowerCase().includes('pengalaman') || 
+      fullConversation.toLowerCase().includes('pendidikan') || 
+      fullConversation.toLowerCase().includes('skill')
+    
+    if (hasRelevantInfo) {
+      // Extract from full conversation context
+      const extractedData = {
         personalInfo: {
-          name: extractName(message),
-          email: extractEmail(message),
-          phone: extractPhone(message),
-          address: extractAddress(message)
+          name: extractName(fullConversation),
+          email: extractEmail(fullConversation),
+          phone: extractPhone(fullConversation),
+          address: extractAddress(fullConversation),
+          summary: extractSummary(fullConversation)
         },
-        experience: extractExperience(message),
-        education: extractEducation(message),
-        skills: extractSkills(message),
-        summary: extractSummary(message)
+        experiences: extractExperience(fullConversation), // Changed to 'experiences' to match CVData interface
+        education: extractEducation(fullConversation),
+        skills: extractSkills(fullConversation)
+      }
+      
+      // Only return cvData if at least name or some content is extracted
+      if (extractedData.personalInfo.name || 
+          extractedData.experiences.length > 0 || 
+          extractedData.education.length > 0 || 
+          extractedData.skills.length > 0) {
+        cvData = extractedData
+        console.log('Extracted CV Data:', JSON.stringify(cvData, null, 2))
       }
     }
+
+    console.log('API Response:', { 
+      hasResponse: !!response, 
+      hasCvData: !!cvData,
+      cvDataKeys: cvData ? Object.keys(cvData) : []
+    })
 
     return NextResponse.json({
       response,
@@ -139,8 +162,24 @@ Format respons:
 
 // Helper functions for data extraction
 function extractName(text: string): string {
-  const nameMatch = text.match(/(?:nama|saya|saya adalah)\s+([A-Za-z\s]+)/i)
-  return nameMatch ? nameMatch[1].trim() : ''
+  // Try multiple patterns to extract name
+  const patterns = [
+    /(?:nama\s+(?:saya|aku|adalah|:)?\s*)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    /(?:saya\s+(?:adalah|bernama)?\s*)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    /(?:perkenalkan|introduce)\s+(?:nama\s+)?(?:saya\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+  ]
+  
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (match && match[1]) {
+      const name = match[1].trim()
+      // Validate name (should be 2-50 chars, letters and spaces only)
+      if (name.length >= 2 && name.length <= 50 && /^[A-Za-z\s]+$/.test(name)) {
+        return name
+      }
+    }
+  }
+  return ''
 }
 
 function extractEmail(text: string): string {
@@ -159,59 +198,236 @@ function extractAddress(text: string): string {
 }
 
 function extractExperience(text: string): any[] {
-  const experienceKeywords = ['pengalaman', 'kerja', 'bekerja', 'perusahaan', 'posisi', 'jabatan']
+  const experienceKeywords = ['pengalaman', 'kerja', 'bekerja', 'perusahaan', 'posisi', 'jabatan', 'pekerjaan', 'karir']
   const hasExperience = experienceKeywords.some(keyword => 
     text.toLowerCase().includes(keyword)
   )
   
   if (hasExperience) {
-    return [{
-      company: 'Perusahaan yang disebutkan',
-      position: 'Posisi yang disebutkan',
-      duration: 'Durasi yang disebutkan',
-      description: 'Deskripsi pengalaman'
-    }]
+    const experiences = []
+    
+    // Try to extract company names
+    const companyPatterns = [
+      /(?:di|pada|perusahaan)\s+([A-Z][A-Za-z\s&.]+?)(?:\s+sebagai|\s+selama|\.|,|$)/gi,
+      /(?:bekerja\s+di|kerja\s+di)\s+([A-Z][A-Za-z\s&.]+?)(?:\s+sebagai|\s+selama|\.|,|$)/gi,
+    ]
+    
+    let company = ''
+    for (const pattern of companyPatterns) {
+      const match = text.match(pattern)
+      if (match && match[0]) {
+        company = match[0].replace(/(?:di|pada|perusahaan|bekerja\s+di|kerja\s+di)\s+/i, '')
+          .replace(/\s+(?:sebagai|selama).*/i, '')
+          .trim()
+        break
+      }
+    }
+    
+    // Try to extract position
+    const positionPatterns = [
+      /(?:sebagai|posisi|jabatan)\s+([A-Za-z\s]+?)(?:\s+di|\s+pada|\s+selama|\.|,|$)/gi,
+      /(?:bekerja\s+sebagai|kerja\s+sebagai)\s+([A-Za-z\s]+?)(?:\s+di|\s+pada|\s+selama|\.|,|$)/gi,
+    ]
+    
+    let position = ''
+    for (const pattern of positionPatterns) {
+      const match = text.match(pattern)
+      if (match && match[0]) {
+        position = match[0].replace(/(?:sebagai|posisi|jabatan|bekerja\s+sebagai|kerja\s+sebagai)\s+/i, '')
+          .replace(/\s+(?:di|pada|selama).*/i, '')
+          .trim()
+        break
+      }
+    }
+    
+    // Try to extract duration
+    const durationPatterns = [
+      /(\d+)\s*(?:tahun)/gi,
+      /(\d+)\s*(?:bulan)/gi,
+      /(?:selama|pengalaman)\s+(\d+)\s*(?:tahun|bulan)/gi,
+    ]
+    
+    let duration = ''
+    for (const pattern of durationPatterns) {
+      const match = text.match(pattern)
+      if (match) {
+        duration = match[0].trim()
+        break
+      }
+    }
+    
+    if (company || position) {
+      experiences.push({
+        company: company || 'Nama Perusahaan',
+        position: position || 'Posisi',
+        duration: duration || 'Durasi',
+        description: text.substring(0, 200) // Take relevant portion
+      })
+    } else {
+      // Fallback: at least indicate there's experience mentioned
+      experiences.push({
+        company: 'Informasi perusahaan dari chat',
+        position: 'Informasi posisi dari chat',
+        duration: 'Informasi durasi dari chat',
+        description: 'Silakan edit dan lengkapi detail pengalaman kerja Anda'
+      })
+    }
+    
+    return experiences
   }
   
   return []
 }
 
 function extractEducation(text: string): any[] {
-  const educationKeywords = ['pendidikan', 'lulusan', 'universitas', 'sekolah', 'jurusan', 'fakultas']
+  const educationKeywords = ['pendidikan', 'lulusan', 'universitas', 'sekolah', 'jurusan', 'fakultas', 'kuliah', 'kampus', 'institusi']
   const hasEducation = educationKeywords.some(keyword => 
     text.toLowerCase().includes(keyword)
   )
   
   if (hasEducation) {
-    return [{
-      institution: 'Institusi yang disebutkan',
-      degree: 'Gelar yang disebutkan',
-      field: 'Bidang studi yang disebutkan',
-      year: 'Tahun lulus'
-    }]
+    const educations = []
+    
+    // Try to extract institution
+    const institutionPatterns = [
+      /(?:dari|di|universitas|kampus)\s+([A-Z][A-Za-z\s]+?)(?:\s+jurusan|\s+fakultas|\.|,|$)/gi,
+      /(?:lulusan)\s+([A-Z][A-Za-z\s]+?)(?:\s+jurusan|\s+fakultas|\.|,|$)/gi,
+    ]
+    
+    let institution = ''
+    for (const pattern of institutionPatterns) {
+      const match = text.match(pattern)
+      if (match && match[0]) {
+        institution = match[0].replace(/(?:dari|di|universitas|kampus|lulusan)\s+/i, '')
+          .replace(/\s+(?:jurusan|fakultas).*/i, '')
+          .trim()
+        break
+      }
+    }
+    
+    // Try to extract field/major
+    const fieldPatterns = [
+      /(?:jurusan|prodi|program studi|fakultas)\s+([A-Za-z\s]+?)(?:\s+di|\s+pada|\.|,|$)/gi,
+    ]
+    
+    let field = ''
+    for (const pattern of fieldPatterns) {
+      const match = text.match(pattern)
+      if (match && match[0]) {
+        field = match[0].replace(/(?:jurusan|prodi|program studi|fakultas)\s+/i, '')
+          .replace(/\s+(?:di|pada).*/i, '')
+          .trim()
+        break
+      }
+    }
+    
+    // Try to extract degree
+    const degreePatterns = [
+      /(S1|S2|S3|D3|D4|Sarjana|Master|Doktor)/gi,
+    ]
+    
+    let degree = ''
+    for (const pattern of degreePatterns) {
+      const match = text.match(pattern)
+      if (match) {
+        degree = match[0]
+        break
+      }
+    }
+    
+    if (institution || field) {
+      educations.push({
+        institution: institution || 'Nama Institusi',
+        degree: degree || 'Gelar',
+        field: field || 'Bidang Studi',
+        year: 'Tahun Lulus'
+      })
+    } else {
+      // Fallback
+      educations.push({
+        institution: 'Informasi pendidikan dari chat',
+        degree: 'Gelar',
+        field: 'Bidang studi',
+        year: 'Tahun'
+      })
+    }
+    
+    return educations
   }
   
   return []
 }
 
 function extractSkills(text: string): string[] {
-  const skillKeywords = ['skill', 'kemampuan', 'keahlian', 'teknologi', 'bahasa pemrograman']
+  const skillKeywords = ['skill', 'kemampuan', 'keahlian', 'teknologi', 'bahasa pemrograman', 'menguasai', 'mahir']
   const hasSkills = skillKeywords.some(keyword => 
     text.toLowerCase().includes(keyword)
   )
   
   if (hasSkills) {
-    // Extract skills mentioned in the text
-    const skills = text.match(/(?:skill|kemampuan|keahlian)[\s\S]*?(?=\n|$)/i)
-    return skills ? [skills[0].trim()] : []
+    const skills: string[] = []
+    
+    // Common programming languages
+    const programmingSkills = ['Python', 'JavaScript', 'Java', 'C++', 'C#', 'PHP', 'Ruby', 'Go', 'Rust', 'TypeScript', 'Swift', 'Kotlin']
+    programmingSkills.forEach(skill => {
+      if (text.toLowerCase().includes(skill.toLowerCase())) {
+        skills.push(skill)
+      }
+    })
+    
+    // Common frameworks and tools
+    const frameworkSkills = ['React', 'Vue', 'Angular', 'Node.js', 'Django', 'Flask', 'Laravel', 'Spring', 'Express', 'Next.js', 'Nuxt.js']
+    frameworkSkills.forEach(skill => {
+      if (text.toLowerCase().includes(skill.toLowerCase())) {
+        skills.push(skill)
+      }
+    })
+    
+    // Common soft skills
+    const softSkills = ['komunikasi', 'leadership', 'teamwork', 'problem solving', 'critical thinking', 'time management']
+    softSkills.forEach(skill => {
+      if (text.toLowerCase().includes(skill.toLowerCase())) {
+        skills.push(skill.charAt(0).toUpperCase() + skill.slice(1))
+      }
+    })
+    
+    // If no specific skills found, extract general mentions
+    if (skills.length === 0) {
+      // Try to extract skills after certain keywords
+      const skillPatterns = [
+        /(?:skill|kemampuan|keahlian|menguasai)\s+(?:di|dalam)?\s*([A-Za-z\s,&]+?)(?:\.|$)/gi,
+      ]
+      
+      for (const pattern of skillPatterns) {
+        const match = text.match(pattern)
+        if (match && match[0]) {
+          const extracted = match[0]
+            .replace(/(?:skill|kemampuan|keahlian|menguasai)\s+(?:di|dalam)?\s*/i, '')
+            .trim()
+          
+          // Split by comma or 'dan'
+          const splitSkills = extracted.split(/,|\s+dan\s+/).map(s => s.trim()).filter(s => s.length > 0)
+          skills.push(...splitSkills)
+          break
+        }
+      }
+    }
+    
+    // Remove duplicates and return
+    return Array.from(new Set(skills)).slice(0, 10) // Max 10 skills
   }
   
   return []
 }
 
 function extractSummary(text: string): string {
-  // Extract a brief summary from the text
-  return text.length > 100 ? text.substring(0, 100) + '...' : text
+  // Extract a brief summary from the first meaningful sentences
+  const sentences = text.split(/[.!?]/).filter(s => s.trim().length > 20)
+  if (sentences.length > 0) {
+    const summary = sentences.slice(0, 2).join('. ').trim()
+    return summary.length > 200 ? summary.substring(0, 200) + '...' : summary + '.'
+  }
+  return ''
 }
 
 function generateFallbackResponse(message: string): string {

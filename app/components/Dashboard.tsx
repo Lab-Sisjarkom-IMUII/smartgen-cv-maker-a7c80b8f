@@ -114,10 +114,32 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   const handleCVDataUpdate = (data: any) => {
-    setCVData(data)
+    // Merge new data with existing data (don't overwrite existing fields)
+    const mergedData = {
+      title: cvData?.title || 'My CV',
+      personalInfo: {
+        ...(cvData?.personalInfo || {}),
+        ...(data?.personalInfo || {})
+      },
+      experiences: [
+        ...(cvData?.experiences || []),
+        ...(data?.experiences || data?.experience || [])
+      ],
+      education: [
+        ...(cvData?.education || []),
+        ...(data?.education || [])
+      ],
+      skills: [
+        ...(cvData?.skills || []),
+        ...(data?.skills || [])
+      ],
+      template: cvData?.template || data?.template || { id: 'modern', name: 'Modern' }
+    }
+    
+    setCVData(mergedData)
     
     // Save to localStorage immediately (instant backup)
-    localStorage.setItem('currentCV', JSON.stringify(data))
+    localStorage.setItem('currentCV', JSON.stringify(mergedData))
     
     // Debounced auto-save to MongoDB (after 2 seconds of no changes)
     if (data && session?.user?.email) {
