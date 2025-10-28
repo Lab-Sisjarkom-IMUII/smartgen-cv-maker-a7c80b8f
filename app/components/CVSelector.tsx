@@ -107,7 +107,7 @@ export default function CVSelector({
                         <p className={`text-sm font-medium truncate ${
                           currentCV?._id === cv._id ? 'text-blue-600' : 'text-gray-900'
                         }`}>
-                          {cv.title}
+                          {cv?.title || 'Untitled CV'}
                         </p>
                         <div className="flex items-center space-x-1 text-xs text-gray-500">
                           <Calendar className="w-3 h-3" />
@@ -122,7 +122,7 @@ export default function CVSelector({
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (cv._id && confirm(`Delete "${cv.title}"?`)) {
+                        if (cv._id && confirm(`Delete "${cv?.title || 'this CV'}"?`)) {
                           onDelete(cv._id)
                         }
                       }}

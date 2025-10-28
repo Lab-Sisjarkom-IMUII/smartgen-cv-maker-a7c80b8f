@@ -31,9 +31,16 @@ export function useCVData(cvId?: string) {
     if (savedCV) {
       try {
         const parsed = JSON.parse(savedCV)
-        setCVData(parsed)
+        // Ensure title exists
+        if (parsed && typeof parsed === 'object') {
+          if (!parsed.title) {
+            parsed.title = 'My CV'
+          }
+          setCVData(parsed)
+        }
       } catch (error) {
         console.error('Error parsing saved CV from localStorage:', error)
+        localStorage.removeItem('currentCV') // Clear corrupted data
       }
     }
   }, [])
@@ -48,11 +55,16 @@ export function useCVData(cvId?: string) {
       const result = await response.json()
 
       if (result.success) {
-        setAllCVs(result.data)
+        // Sanitize CV data - ensure all CVs have title
+        const sanitizedCVs = result.data.map((cv: any) => ({
+          ...cv,
+          title: cv.title || 'Untitled CV'
+        }))
+        setAllCVs(sanitizedCVs)
         
         // Load first CV if no specific CV selected
-        if (!cvId && result.data.length > 0) {
-          setCVData(result.data[0])
+        if (!cvId && sanitizedCVs.length > 0) {
+          setCVData(sanitizedCVs[0])
         }
       }
     } catch (error) {
