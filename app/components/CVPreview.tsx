@@ -24,6 +24,9 @@ export default function CVPreview({ cvData, template }: CVPreviewProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop')
   const cvRef = useRef<HTMLDivElement>(null)
+  
+  // Use template from cvData if not explicitly passed
+  const activeTemplate = template || cvData?.template?.id || 'modern'
 
   const handleDownloadPDF = async () => {
     if (!cvRef.current) return
@@ -147,7 +150,7 @@ export default function CVPreview({ cvData, template }: CVPreviewProps) {
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Preview CV</h2>
             <p className="text-sm text-gray-600">
-              Template: {template || 'Belum dipilih'}
+              Template: {activeTemplate.charAt(0).toUpperCase() + activeTemplate.slice(1)}
             </p>
           </div>
           
@@ -228,13 +231,12 @@ export default function CVPreview({ cvData, template }: CVPreviewProps) {
             }}
           >
             {/* CV Content based on template */}
-            {template === 'modern' && <ModernTemplate cvData={cvData} />}
-            {template === 'creative' && <CreativeTemplate cvData={cvData} />}
-            {template === 'minimalist' && <MinimalistTemplate cvData={cvData} />}
-            {template === 'executive' && <ExecutiveTemplate cvData={cvData} />}
-            {template === 'academic' && <AcademicTemplate cvData={cvData} />}
-            {template === 'startup' && <StartupTemplate cvData={cvData} />}
-            {!template && <DefaultTemplate cvData={cvData} />}
+            {activeTemplate === 'modern' && <ModernTemplate cvData={cvData} />}
+            {activeTemplate === 'creative' && <CreativeTemplate cvData={cvData} />}
+            {activeTemplate === 'minimalist' && <MinimalistTemplate cvData={cvData} />}
+            {activeTemplate === 'executive' && <ExecutiveTemplate cvData={cvData} />}
+            {activeTemplate === 'academic' && <AcademicTemplate cvData={cvData} />}
+            {activeTemplate === 'startup' && <StartupTemplate cvData={cvData} />}
           </div>
         </div>
       </div>

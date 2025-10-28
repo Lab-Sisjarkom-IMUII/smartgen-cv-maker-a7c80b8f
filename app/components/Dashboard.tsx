@@ -60,6 +60,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     autoSave,
     fetchCV,
   } = useCVData()
+  
+  // Load template from CV data when CV changes
+  useEffect(() => {
+    if (cvData?.template?.id) {
+      setSelectedTemplate(cvData.template.id)
+    }
+  }, [cvData?._id, cvData?.template?.id])
 
   // Save active tab to localStorage when it changes
   useEffect(() => {
@@ -120,6 +127,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
   const handleTemplateSelect = (template: string) => {
     setSelectedTemplate(template)
+    
+    // Update CV data with selected template
+    const updatedData = {
+      ...cvData,
+      template: {
+        id: template,
+        name: template.charAt(0).toUpperCase() + template.slice(1)
+      }
+    }
+    
+    handleCVDataUpdate(updatedData)
     setActiveTab('builder')
   }
 
