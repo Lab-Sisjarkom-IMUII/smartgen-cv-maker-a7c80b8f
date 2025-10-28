@@ -23,7 +23,17 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Store component stack for better debugging and still log to console
     console.error('Error caught by boundary:', error, errorInfo)
+    try {
+      // update state with component stack if available
+      // eslint-disable-next-line react/no-did-mount-set-state
+      this.setState({ error: error })
+      // Attach componentStack to window for quick inspection if needed
+      ;(window as any).__lastComponentStack = errorInfo.componentStack
+    } catch (e) {
+      // ignore
+    }
   }
 
   render() {
@@ -40,10 +50,17 @@ export default class ErrorBoundary extends React.Component<Props, State> {
             <p className="text-gray-600 mb-4">
               Maaf, aplikasi mengalami kesalahan. Silakan refresh halaman atau hubungi support jika masalah berlanjut.
             </p>
-            <div className="bg-red-50 border border-red-200 rounded p-3 mb-4">
-              <p className="text-sm text-red-800 font-mono">
+            <div className="bg-red-50 border border-red-200 rounded p-3 mb-4 max-h-48 overflow-auto">
+              <p className="text-sm text-red-800 font-mono whitespace-pre-wrap">
                 {this.state.error?.message || 'Unknown error'}
               </p>
+              {this.state.error?.stack && (
+                <pre className="text-xs text-red-700 mt-2 font-mono whitespace-pre-wrap">{this.state.error.stack}</pre>
+              )}
+              {/* Show last captured component stack if available on window */}
+              {(window as any).__lastComponentStack && (
+                <pre className="text-xs text-red-700 mt-2 font-mono whitespace-pre-wrap">{(window as any).__lastComponentStack}</pre>
+              )}
             </div>
             <div className="flex space-x-3">
               <button
