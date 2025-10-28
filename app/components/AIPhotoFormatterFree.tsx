@@ -102,6 +102,11 @@ export default function AIPhotoFormatterFree() {
         progress: (key: string, current: number, total: number) => {
           const percent = Math.round((current / total) * 100)
           setProgress(Math.min(percent, 90))
+        },
+        model: 'small', // Use smaller, faster model
+        output: {
+          format: 'image/png',
+          quality: 0.9
         }
       })
 
@@ -142,7 +147,7 @@ export default function AIPhotoFormatterFree() {
 
     } catch (error) {
       console.error('Error processing image:', error)
-      toast.error('Gagal memproses foto. Pastikan wajah terlihat jelas.', { id: 'processing' })
+      toast.error('Gagal memproses foto. Coba foto dengan pencahayaan yang lebih baik atau resolusi lebih tinggi.', { id: 'processing' })
     } finally {
       setIsProcessing(false)
     }

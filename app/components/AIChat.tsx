@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Send, Bot, User, Sparkles } from 'lucide-react'
+import { Send, Bot, User, Sparkles, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Message {
@@ -17,17 +17,50 @@ interface AIChatProps {
 }
 
 export default function AIChat({ onCVDataUpdate }: AIChatProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: "Halo! Saya AI Assistant untuk SmartGen CV Maker. Saya akan membantu Anda membuat CV yang profesional. Silakan ceritakan tentang diri Anda - nama, pengalaman kerja, pendidikan, skill, dan informasi lainnya yang ingin Anda sertakan dalam CV.",
-      timestamp: new Date()
-    }
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Load chat history from localStorage on mount
+  useEffect(() => {
+    const savedMessages = localStorage.getItem('aiChatHistory')
+    if (savedMessages) {
+      try {
+        const parsed = JSON.parse(savedMessages)
+        // Convert timestamp strings back to Date objects
+        const messagesWithDates = parsed.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }))
+        setMessages(messagesWithDates)
+      } catch (error) {
+        console.error('Error loading chat history:', error)
+        // Set default welcome message if loading fails
+        setMessages([{
+          id: '1',
+          role: 'assistant',
+          content: "Halo! Saya AI Assistant untuk SmartGen CV Maker. Saya akan membantu Anda membuat CV yang profesional. Silakan ceritakan tentang diri Anda - nama, pengalaman kerja, pendidikan, skill, dan informasi lainnya yang ingin Anda sertakan dalam CV.",
+          timestamp: new Date()
+        }])
+      }
+    } else {
+      // Set default welcome message for first time
+      setMessages([{
+        id: '1',
+        role: 'assistant',
+        content: "Halo! Saya AI Assistant untuk SmartGen CV Maker. Saya akan membantu Anda membuat CV yang profesional. Silakan ceritakan tentang diri Anda - nama, pengalaman kerja, pendidikan, skill, dan informasi lainnya yang ingin Anda sertakan dalam CV.",
+        timestamp: new Date()
+      }])
+    }
+  }, [])
+
+  // Save chat history to localStorage whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('aiChatHistory', JSON.stringify(messages))
+    }
+  }, [messages])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -85,7 +118,9 @@ export default function AIChat({ onCVDataUpdate }: AIChatProps) {
       // If AI extracted CV data, update the parent component
       if (data.cvData) {
         onCVDataUpdate(data.cvData)
-        toast.success('CV data telah diekstrak dan disimpan!')
+        toast.success('✅ Data CV berhasil diekstrak! Lihat hasilnya di tab Preview.', {
+          duration: 5000,
+        })
       }
     } catch (error) {
       console.error('Error sending message:', error)
@@ -119,21 +154,47 @@ export default function AIChat({ onCVDataUpdate }: AIChatProps) {
     "Saya fresh graduate dari jurusan Manajemen..."
   ]
 
+  const clearChatHistory = () => {
+    if (confirm('Yakin ingin menghapus seluruh riwayat chat?')) {
+      const welcomeMessage: Message = {
+        id: '1',
+        role: 'assistant',
+        content: "Halo! Saya AI Assistant untuk SmartGen CV Maker. Saya akan membantu Anda membuat CV yang profesional. Silakan ceritakan tentang diri Anda - nama, pengalaman kerja, pendidikan, skill, dan informasi lainnya yang ingin Anda sertakan dalam CV.",
+        timestamp: new Date()
+      }
+      setMessages([welcomeMessage])
+      localStorage.removeItem('aiChatHistory')
+      toast.success('Riwayat chat berhasil dihapus')
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="bg-white rounded-lg shadow-sm border">
         {/* Header */}
         <div className="p-6 border-b bg-gradient-to-r from-primary-50 to-blue-50">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">AI Assistant</h2>
+                <p className="text-sm text-gray-600">
+                  Ceritakan tentang diri Anda dan saya akan membantu membuat CV
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">AI Assistant</h2>
-              <p className="text-sm text-gray-600">
-                Ceritakan tentang diri Anda dan saya akan membantu membuat CV
-              </p>
-            </div>
+            {messages.length > 1 && (
+              <button
+                onClick={clearChatHistory}
+                className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center space-x-2"
+                title="Hapus riwayat chat"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Hapus Chat</span>
+              </button>
+            )}
           </div>
         </div>
 
