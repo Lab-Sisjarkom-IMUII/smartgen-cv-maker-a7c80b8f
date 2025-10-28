@@ -63,8 +63,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   
   // Load template from CV data when CV changes
   useEffect(() => {
-    if (cvData?.template?.id) {
-      setSelectedTemplate(cvData.template.id)
+    try {
+      if (cvData?.template?.id) {
+        setSelectedTemplate(cvData.template.id)
+      } else if (cvData && !cvData.template) {
+        // Set default template if CV exists but has no template
+        setSelectedTemplate('modern')
+      }
+    } catch (error) {
+      console.error('Error loading template:', error)
+      setSelectedTemplate('modern') // Fallback to modern
     }
   }, [cvData?._id, cvData?.template?.id])
 
@@ -129,8 +137,17 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     setSelectedTemplate(template)
     
     // Update CV data with selected template
-    const updatedData = {
+    const updatedData = cvData ? {
       ...cvData,
+      template: {
+        id: template,
+        name: template.charAt(0).toUpperCase() + template.slice(1)
+      }
+    } : {
+      personalInfo: {},
+      experience: [],
+      education: [],
+      skills: [],
       template: {
         id: template,
         name: template.charAt(0).toUpperCase() + template.slice(1)

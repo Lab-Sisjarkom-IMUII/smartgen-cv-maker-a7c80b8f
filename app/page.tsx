@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import MockAuthPage from './components/MockAuthPage'
 import Dashboard from './components/Dashboard'
+import ErrorBoundary from './components/ErrorBoundary'
 
 export default function Home() {
   const { data: session, status } = useSession()
@@ -47,5 +48,9 @@ export default function Home() {
     return <MockAuthPage onLogin={handleLogin} />
   }
 
-  return <Dashboard onLogout={handleLogout} />
+  return (
+    <ErrorBoundary>
+      <Dashboard onLogout={handleLogout} />
+    </ErrorBoundary>
+  )
 }
