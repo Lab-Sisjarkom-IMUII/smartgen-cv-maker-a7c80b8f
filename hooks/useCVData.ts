@@ -230,16 +230,60 @@ export function useCVData(cvId?: string) {
     }
   }, [])
 
-  // Auto-save function (debounced)
+  // Auto-save function (debounced, silent mode)
   const autoSave = useCallback(async (data: CVData) => {
-    if (!data._id) {
-      // Create new CV if no ID
-      await createCV(data)
-    } else {
-      // Update existing CV
-      await updateCV(data._id, data)
+    if (!session?.user?.email) {
+      console.log('Auto-save skipped: No session')
+      return
     }
-  }, [createCV, updateCV])
+
+    try {
+      if (!data._id) {
+        // Create new CV silently
+        console.log('Auto-save: Creating new CV')
+        const response = await fetch('/api/cv', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        })
+
+        const result = await response.json()
+
+        if (response.ok && (result.success || result.data)) {
+          console.log('Auto-save: CV created successfully')
+          setCVData(result.data)
+          setLastSaved(new Date())
+          await fetchAllCVs() // Refresh list
+        } else {
+          console.error('Auto-save create failed:', result)
+        }
+      } else {
+        // Update existing CV silently
+        console.log('Auto-save: Updating CV', data._id)
+        const response = await fetch(`/api/cv/${data._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        })
+
+        const result = await response.json()
+
+        if (response.ok && (result.success || result.data)) {
+          console.log('Auto-save: CV updated successfully')
+          setCVData(result.data)
+          setLastSaved(new Date())
+          
+          // Create silent snapshot
+          await createSnapshot(data._id, 'Auto-save')
+        } else {
+          console.error('Auto-save update failed:', result)
+        }
+      }
+    } catch (error) {
+      console.error('Auto-save error:', error)
+      // Silent fail - don't show toast for auto-save errors
+    }
+  }, [session, fetchAllCVs, createSnapshot])
 
   // Load CVs on mount
   useEffect(() => {
