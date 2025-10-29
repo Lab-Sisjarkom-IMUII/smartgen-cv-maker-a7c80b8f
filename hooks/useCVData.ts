@@ -114,13 +114,20 @@ export function useCVData(cvId?: string) {
 
       const result = await response.json()
 
-      if (result.success) {
+      if (!response.ok) {
+        console.error('Create CV API error:', result)
+        toast.error(result.error || 'Gagal membuat CV')
+        return null
+      }
+
+      if (result.success || result.data) {
         toast.success('CV berhasil dibuat!')
         setCVData(result.data)
         setLastSaved(new Date())
         await fetchAllCVs() // Refresh list
         return result.data
       } else {
+        console.error('Unexpected response format:', result)
         toast.error(result.error || 'Gagal membuat CV')
         return null
       }
@@ -150,7 +157,13 @@ export function useCVData(cvId?: string) {
 
       const result = await response.json()
 
-      if (result.success) {
+      if (!response.ok) {
+        console.error('Update CV API error:', result)
+        toast.error(result.error || 'Gagal menyimpan CV')
+        return false
+      }
+
+      if (result.success || result.data) {
         setCVData(result.data)
         setLastSaved(new Date())
         await fetchAllCVs() // Refresh list
@@ -160,6 +173,7 @@ export function useCVData(cvId?: string) {
         
         return true
       } else {
+        console.error('Unexpected response format:', result)
         toast.error(result.error || 'Gagal menyimpan CV')
         return false
       }

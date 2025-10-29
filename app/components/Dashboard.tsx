@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { motion } from 'framer-motion'
+import toast from 'react-hot-toast'
 import { 
   FileText, 
   MessageSquare, 
@@ -183,28 +184,39 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   const handleTemplateSelect = (template: string) => {
+    console.log('Template selected:', template)
     setSelectedTemplate(template)
     
-    // Update CV data with selected template
-    const updatedData = cvData ? {
-      ...cvData,
-      template: {
-        id: template,
-        name: template.charAt(0).toUpperCase() + template.slice(1)
+    // IMPORTANT: Preserve ALL existing data, only update template
+    if (cvData) {
+      const updatedData = {
+        ...cvData, // Keep ALL existing data
+        template: {
+          id: template,
+          name: template.charAt(0).toUpperCase() + template.slice(1)
+        }
       }
-    } : {
-      personalInfo: {},
-      experience: [],
-      education: [],
-      skills: [],
-      template: {
-        id: template,
-        name: template.charAt(0).toUpperCase() + template.slice(1)
+      handleCVDataUpdate(updatedData)
+    } else {
+      // If no data yet, create minimal structure
+      const newData = {
+        title: 'My CV',
+        personalInfo: {},
+        experiences: [],
+        education: [],
+        skills: [],
+        template: {
+          id: template,
+          name: template.charAt(0).toUpperCase() + template.slice(1)
+        }
       }
+      setCVData(newData)
+      localStorage.setItem('currentCV', JSON.stringify(newData))
     }
     
-    handleCVDataUpdate(updatedData)
-    setActiveTab('builder')
+    // Redirect to Preview to see the result
+    setActiveTab('preview')
+    toast.success(`Template "${template}" dipilih! Lihat hasilnya di Preview.`)
   }
 
   return (
