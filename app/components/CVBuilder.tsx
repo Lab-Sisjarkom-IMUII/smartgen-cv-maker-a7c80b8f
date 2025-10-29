@@ -359,6 +359,77 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
 
 // Component sections
 function PersonalInfoSection({ data, onChange }: any) {
+  const fileInputRef = React.createRef<HTMLInputElement>()
+  const [previewUrl, setPreviewUrl] = useState<string>(data?.photo || '')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [bgRemovalModule, setBgRemovalModule] = useState<any>(null)
+
+  useEffect(() => {
+    // keep preview in sync when parent data changes
+    setPreviewUrl(data?.photo || '')
+  }, [data?.photo])
+
+  useEffect(() => {
+    // lazy-load bg removal library when component mounts
+    if (typeof window !== 'undefined') {
+      import('@imgly/background-removal')
+        .then((module) => setBgRemovalModule(module))
+        .catch((err) => console.error('Failed to load bg removal lib', err))
+    }
+  }, [])
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const url = ev.target?.result as string
+      setPreviewUrl(url)
+      onChange('photo', url)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleProcessWithAI = async () => {
+    if (!previewUrl) {
+      toast.error('Pilih foto terlebih dahulu')
+      return
+    }
+    if (!bgRemovalModule) {
+      toast.error('AI library belum siap, silakan coba lagi sebentar')
+      return
+    }
+    setIsProcessing(true)
+    try {
+      toast.loading('Memproses foto...')
+      const blob = await bgRemovalModule.removeBackground(previewUrl, { model: 'small', output: { format: 'image/png' } })
+      const img = new Image()
+      img.src = URL.createObjectURL(blob)
+      await new Promise((r) => (img.onload = r))
+
+      // draw on canvas with white background
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas context error')
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0)
+      const dataUrl = canvas.toDataURL('image/png')
+      setPreviewUrl(dataUrl)
+      onChange('photo', dataUrl)
+      toast.dismiss()
+      toast.success('Foto berhasil diproses')
+    } catch (err) {
+      console.error('Process AI photo error', err)
+      toast.error('Gagal memproses foto')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -437,6 +508,48 @@ function PersonalInfoSection({ data, onChange }: any) {
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 bg-white resize-none"
           placeholder="Ceritakan tentang diri Anda secara singkat..."
         />
+      </div>
+
+      {/* Photo uploader */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Foto Profil</label>
+        <div className="flex items-center gap-4">
+          <div className="w-28 h-36 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+            {data.photo ? (
+              <img src={data.photo} alt="Profil" className="w-full h-full object-cover" />
+            ) : (
+              <div className="text-sm text-gray-500 text-center">Belum ada foto</div>
+            )}
+          </div>
+
+          <div className="flex-1">
+            <div className="flex gap-2 mb-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg"
+              >
+                Upload Foto
+              </button>
+              <button
+                type="button"
+                onClick={handleProcessWithAI}
+                disabled={isProcessing}
+                className="px-4 py-2 border rounded-lg"
+              >
+                {isProcessing ? 'Memproses...' : 'Gunakan AI (hapus background)'}
+              </button>
+            </div>
+            <p className="text-sm text-gray-500">Anda bisa langsung upload foto atau gunakan fitur AI untuk membuat foto formal (background removal).</p>
+          </div>
+        </div>
       </div>
     </div>
   )

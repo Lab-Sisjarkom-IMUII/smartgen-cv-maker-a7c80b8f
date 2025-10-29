@@ -265,14 +265,21 @@ function ModernTemplate({ cvData }: { cvData: any }) {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="bg-primary-600 text-white p-6 rounded-lg mb-6">
-        <h1 className="text-3xl font-bold mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
-        <div className="flex flex-wrap gap-4 text-sm">
-          <span>{cvData.personalInfo?.email || 'email@example.com'}</span>
-          <span>{cvData.personalInfo?.phone || '+62 812 3456 7890'}</span>
-          <span>{cvData.personalInfo?.address || 'Alamat'}</span>
-        </div>
-      </div>
+          <div className="bg-primary-600 text-white p-6 rounded-lg mb-6 flex items-center gap-6">
+            {cvData.personalInfo?.photo && (
+              <div className="w-24 h-28 rounded overflow-hidden bg-white/10 flex-shrink-0">
+                <img src={cvData.personalInfo.photo} alt="Foto" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div>
+              <h1 className="text-3xl font-bold mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <span>{cvData.personalInfo?.email || 'email@example.com'}</span>
+                <span>{cvData.personalInfo?.phone || '+62 812 3456 7890'}</span>
+                <span>{cvData.personalInfo?.address || 'Alamat'}</span>
+              </div>
+            </div>
+          </div>
 
       {/* Summary */}
       {cvData.personalInfo?.summary && (
@@ -367,20 +374,27 @@ function CreativeTemplate({ cvData }: { cvData: any }) {
     <div className="p-8">
       {/* Header with creative design */}
       <div className="relative mb-8">
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-8 rounded-2xl">
-          <h1 className="text-4xl font-bold mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="flex items-center space-x-2">
-              <span>📧</span>
-              <span>{cvData.personalInfo?.email || 'email@example.com'}</span>
+        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-8 rounded-2xl flex items-center gap-6">
+          {cvData.personalInfo?.photo && (
+            <div className="w-28 h-36 bg-white/10 rounded overflow-hidden flex-shrink-0">
+              <img src={cvData.personalInfo.photo} alt="Foto" className="w-full h-full object-cover" />
             </div>
-            <div className="flex items-center space-x-2">
-              <span>📱</span>
-              <span>{cvData.personalInfo?.phone || '+62 812 3456 7890'}</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span>📍</span>
-              <span>{cvData.personalInfo?.address || 'Alamat'}</span>
+          )}
+          <div>
+            <h1 className="text-4xl font-bold mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div className="flex items-center space-x-2">
+                <span>📧</span>
+                <span>{cvData.personalInfo?.email || 'email@example.com'}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span>📱</span>
+                <span>{cvData.personalInfo?.phone || '+62 812 3456 7890'}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span>📍</span>
+                <span>{cvData.personalInfo?.address || 'Alamat'}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -471,12 +485,21 @@ function MinimalistTemplate({ cvData }: { cvData: any }) {
     <div className="p-8 max-w-4xl mx-auto">
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-4xl font-light text-gray-900 mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
-        <div className="text-gray-600 space-y-1">
-          <p>{cvData.personalInfo?.email || 'email@example.com'}</p>
-          <p>{cvData.personalInfo?.phone || '+62 812 3456 7890'}</p>
-          <p>{cvData.personalInfo?.address || 'Alamat'}</p>
-        </div>
+            <div className="flex items-center justify-center gap-6">
+              {cvData.personalInfo?.photo && (
+                <div className="w-24 h-28 rounded overflow-hidden bg-gray-100">
+                  <img src={cvData.personalInfo.photo} alt="Foto" className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div>
+                <h1 className="text-4xl font-light text-gray-900 mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
+                <div className="text-gray-600 space-y-1">
+                  <p>{cvData.personalInfo?.email || 'email@example.com'}</p>
+                  <p>{cvData.personalInfo?.phone || '+62 812 3456 7890'}</p>
+                  <p>{cvData.personalInfo?.address || 'Alamat'}</p>
+                </div>
+              </div>
+            </div>
       </div>
 
       {/* Content */}
@@ -570,12 +593,19 @@ function ExecutiveTemplate({ cvData }: { cvData: any }) {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="border-b-4 border-gray-800 pb-6 mb-6">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-gray-600">
-          <div>{cvData.personalInfo?.email || 'email@example.com'}</div>
-          <div>{cvData.personalInfo?.phone || '+62 812 3456 7890'}</div>
-          <div>{cvData.personalInfo?.address || 'Alamat'}</div>
+      <div className="border-b-4 border-gray-800 pb-6 mb-6 flex items-center gap-6">
+        {cvData.personalInfo?.photo && (
+          <div className="w-24 h-28 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+            <img src={cvData.personalInfo.photo} alt="Foto" className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-gray-600">
+            <div>{cvData.personalInfo?.email || 'email@example.com'}</div>
+            <div>{cvData.personalInfo?.phone || '+62 812 3456 7890'}</div>
+            <div>{cvData.personalInfo?.address || 'Alamat'}</div>
+          </div>
         </div>
       </div>
 
@@ -757,12 +787,19 @@ function StartupTemplate({ cvData }: { cvData: any }) {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg mb-6">
-        <h1 className="text-3xl font-bold mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
-        <div className="flex flex-wrap gap-4 text-sm">
-          <span>📧 {cvData.personalInfo?.email || 'email@example.com'}</span>
-          <span>📱 {cvData.personalInfo?.phone || '+62 812 3456 7890'}</span>
-          <span>📍 {cvData.personalInfo?.address || 'Alamat'}</span>
+      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg mb-6 flex items-center gap-6">
+        {cvData.personalInfo?.photo && (
+          <div className="w-20 h-28 rounded overflow-hidden bg-white/10 flex-shrink-0">
+            <img src={cvData.personalInfo.photo} alt="Foto" className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div>
+          <h1 className="text-3xl font-bold mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <span>📧 {cvData.personalInfo?.email || 'email@example.com'}</span>
+            <span>📱 {cvData.personalInfo?.phone || '+62 812 3456 7890'}</span>
+            <span>📍 {cvData.personalInfo?.address || 'Alamat'}</span>
+          </div>
         </div>
       </div>
 
