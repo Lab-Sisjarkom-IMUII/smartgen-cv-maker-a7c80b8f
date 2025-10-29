@@ -446,6 +446,21 @@ function CreativeTemplate({ cvData }: { cvData: any }) {
             </div>
           </div>
         )}
+
+        {/* Languages (ensure rendered separately) */}
+        {cvData.languages?.length > 0 && (
+          <div>
+            <h2 className="text-2xl font-bold text-purple-600 mb-4">Bahasa</h2>
+            <div className="flex flex-wrap gap-2">
+              {cvData.languages.map((lang: any, index: number) => (
+                <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
+                  {typeof lang === 'string' ? lang : (lang?.name || 'Language')}{' '}
+                  {typeof lang === 'object' && lang?.level ? `(${lang.level})` : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -513,6 +528,21 @@ function MinimalistTemplate({ cvData }: { cvData: any }) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Languages */}
+        {cvData.languages?.length > 0 && (
+          <div>
+            <h2 className="text-lg font-medium text-gray-900 mb-3 border-b border-gray-300 pb-1">Bahasa</h2>
+            <div className="flex flex-wrap gap-2">
+              {cvData.languages.map((lang: any, index: number) => (
+                <span key={index} className="text-sm text-gray-700 border border-gray-300 px-2 py-1 rounded">
+                  {typeof lang === 'string' ? lang : (lang?.name || 'Language')}{' '}
+                  {typeof lang === 'object' && lang?.level ? `(${lang.level})` : ''}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
@@ -611,6 +641,21 @@ function ExecutiveTemplate({ cvData }: { cvData: any }) {
             </div>
           </div>
         )}
+        
+        {/* Languages */}
+        {cvData.languages?.length > 0 && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Bahasa</h2>
+            <div className="flex flex-wrap gap-2">
+              {cvData.languages.map((lang: any, index: number) => (
+                <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
+                  {typeof lang === 'string' ? lang : (lang?.name || 'Language')}{' '}
+                  {typeof lang === 'object' && lang?.level ? `(${lang.level})` : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -683,6 +728,21 @@ function AcademicTemplate({ cvData }: { cvData: any }) {
               {cvData.skills.map((skill: any, index: number) => (
                 <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded text-sm">
                   {typeof skill === 'string' ? skill : (skill?.name || "Skill")}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Languages */}
+        {cvData.languages?.length > 0 && (
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-3">Bahasa</h2>
+            <div className="flex flex-wrap gap-2">
+              {cvData.languages.map((lang: any, index: number) => (
+                <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded text-sm">
+                  {typeof lang === 'string' ? lang : (lang?.name || 'Language')}{' '}
+                  {typeof lang === 'object' && lang?.level ? `(${lang.level})` : ''}
                 </span>
               ))}
             </div>
@@ -761,6 +821,21 @@ function StartupTemplate({ cvData }: { cvData: any }) {
                 <div key={index} className="bg-gradient-to-r from-blue-100 to-purple-100 p-3 rounded-lg text-center">
                   <span className="font-medium text-gray-900">{typeof skill === 'string' ? skill : (skill?.name || "Skill")}</span>
                   {skill?.level && <span className="text-sm text-blue-600 block">({skill?.level})</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Languages */}
+        {cvData.languages?.length > 0 && (
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-3">Bahasa</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {cvData.languages.map((lang: any, index: number) => (
+                <div key={index} className="bg-gray-50 p-2 rounded text-center text-sm">
+                  {typeof lang === 'string' ? lang : (lang?.name || 'Language')}
+                  {typeof lang === 'object' && lang?.level && <div className="text-xs text-gray-600">{lang.level}</div>}
                 </div>
               ))}
             </div>
