@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import { 
   User, 
@@ -56,6 +57,7 @@ interface CVBuilderProps {
 }
 
 export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderProps) {
+  const { data: session } = useSession()
   const [data, setData] = useState<CVData>({
     personalInfo: {
       name: '',
@@ -75,9 +77,18 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
 
   useEffect(() => {
     if (cvData) {
-      setData(cvData)
+      // Load data but clear email if it matches login email
+      const loadedData = { ...cvData }
+      
+      // If email in CV matches login email, clear it (user probably doesn't want their login email in CV)
+      if (session?.user?.email && loadedData.personalInfo?.email === session.user.email) {
+        console.log('Clearing login email from CV data')
+        loadedData.personalInfo.email = ''
+      }
+      
+      setData(loadedData)
     }
-  }, [cvData])
+  }, [cvData, session?.user?.email])
 
   const sections = [
     { id: 'personal', label: 'Informasi Pribadi', icon: User },
@@ -349,14 +360,28 @@ function PersonalInfoSection({ data, onChange }: any) {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Email
           </label>
-          <input
-            type="email"
-            value={data.email || ''}
-            onChange={(e) => onChange('email', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 bg-white"
-            placeholder="email@example.com"
-            autoComplete="off"
-          />
+          <div className="relative">
+            <input
+              type="email"
+              value={data.email || ''}
+              onChange={(e) => onChange('email', e.target.value)}
+              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 bg-white"
+              placeholder="email@example.com"
+              autoComplete="off"
+            />
+            {data.email && (
+              <button
+                type="button"
+                onClick={() => onChange('email', '')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                title="Clear email"
+              >
+                <svg className="w-4 h-4 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
