@@ -21,6 +21,12 @@ interface CVPreviewProps {
 }
 
 export default function CVPreview({ cvData, template }: CVPreviewProps) {
+  // Normalize data shapes: some flows use `experience` while others use `experiences`.
+  const normalizedCvData = {
+    ...cvData,
+    experience: cvData?.experience || cvData?.experiences || [],
+    languages: cvData?.languages || cvData?.language || [],
+  }
   const [isGenerating, setIsGenerating] = useState(false)
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop')
   const cvRef = useRef<HTMLDivElement>(null)
@@ -230,13 +236,13 @@ export default function CVPreview({ cvData, template }: CVPreviewProps) {
               width: previewMode === 'mobile' ? '100%' : '100%'
             }}
           >
-            {/* CV Content based on template */}
-            {activeTemplate === 'modern' && <ModernTemplate cvData={cvData} />}
-            {activeTemplate === 'creative' && <CreativeTemplate cvData={cvData} />}
-            {activeTemplate === 'minimalist' && <MinimalistTemplate cvData={cvData} />}
-            {activeTemplate === 'executive' && <ExecutiveTemplate cvData={cvData} />}
-            {activeTemplate === 'academic' && <AcademicTemplate cvData={cvData} />}
-            {activeTemplate === 'startup' && <StartupTemplate cvData={cvData} />}
+            {/* CV Content based on template (use normalized data to avoid merged fields) */}
+            {activeTemplate === 'modern' && <ModernTemplate cvData={normalizedCvData} />}
+            {activeTemplate === 'creative' && <CreativeTemplate cvData={normalizedCvData} />}
+            {activeTemplate === 'minimalist' && <MinimalistTemplate cvData={normalizedCvData} />}
+            {activeTemplate === 'executive' && <ExecutiveTemplate cvData={normalizedCvData} />}
+            {activeTemplate === 'academic' && <AcademicTemplate cvData={normalizedCvData} />}
+            {activeTemplate === 'startup' && <StartupTemplate cvData={normalizedCvData} />}
           </div>
         </div>
       </div>
@@ -345,7 +351,8 @@ function ModernTemplate({ cvData }: { cvData: any }) {
           <div className="flex flex-wrap gap-2">
             {cvData.languages.map((lang: any, index: number) => (
               <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
-                {lang?.name || 'Language'} {lang?.level && `(${lang?.level})`}
+                {typeof lang === 'string' ? lang : (lang?.name || 'Language')}{' '}
+                {typeof lang === 'object' && lang?.level ? `(${lang.level})` : ''}
               </span>
             ))}
           </div>
