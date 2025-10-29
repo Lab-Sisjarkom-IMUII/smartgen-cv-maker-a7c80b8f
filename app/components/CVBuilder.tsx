@@ -77,15 +77,33 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
 
   useEffect(() => {
     if (cvData) {
-      // Load data but clear email if it matches login email
-      const loadedData = { ...cvData }
-      
+      // Load data but ensure all arrays/fields exist (prevent undefined.map errors)
+      const defaultPersonal = {
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        summary: ''
+      }
+
+      const loadedData = {
+        personalInfo: defaultPersonal,
+        experience: [],
+        education: [],
+        skills: [],
+        languages: [],
+        ...cvData
+      }
+
+      // Ensure personalInfo exists
+      loadedData.personalInfo = { ...defaultPersonal, ...(loadedData.personalInfo || {}) }
+
       // If email in CV matches login email, clear it (user probably doesn't want their login email in CV)
       if (session?.user?.email && loadedData.personalInfo?.email === session.user.email) {
         console.log('Clearing login email from CV data')
         loadedData.personalInfo.email = ''
       }
-      
+
       setData(loadedData)
     }
   }, [cvData, session?.user?.email])
