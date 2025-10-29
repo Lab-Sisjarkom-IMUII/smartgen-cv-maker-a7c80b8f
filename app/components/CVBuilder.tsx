@@ -306,15 +306,17 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
             <div className="p-6">
               {activeSection === 'personal' && (
                 <PersonalInfoSection 
-                  data={data.personalInfo} 
-                  onChange={(field: string, value: string) => 
-                    setData(prev => ({
-                      ...prev,
-                      personalInfo: { ...prev.personalInfo, [field]: value }
-                    }))
-                  }
-                  openAIModal={() => setShowAIModal(true)}
-                />
+                    data={data.personalInfo} 
+                    onChange={(field: string, value: string) => {
+                      setData(prev => {
+                        const next = { ...prev, personalInfo: { ...prev.personalInfo, [field]: value } }
+                        // notify parent/dashboard immediately so preview updates
+                        onDataUpdate && onDataUpdate(next)
+                        return next
+                      })
+                    }}
+                    openAIModal={() => setShowAIModal(true)}
+                  />
               )}
 
               {activeSection === 'experience' && (
@@ -371,10 +373,11 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
               <AIPhotoFormatterFree
                 onSave={(dataUrl: string) => {
                   // set into personalInfo.photo and close modal
-                  setData(prev => ({
-                    ...prev,
-                    personalInfo: { ...prev.personalInfo, photo: dataUrl }
-                  }))
+                  setData(prev => {
+                    const next = { ...prev, personalInfo: { ...prev.personalInfo, photo: dataUrl } }
+                    onDataUpdate && onDataUpdate(next)
+                    return next
+                  })
                   setShowAIModal(false)
                 }}
               />
