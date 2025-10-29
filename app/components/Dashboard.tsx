@@ -170,7 +170,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     localStorage.setItem('currentCV', JSON.stringify(mergedData))
     
     // Debounced auto-save to MongoDB (after 2 seconds of no changes)
-    if (data && session?.user?.email) {
+    if (mergedData && session?.user?.email) {
       // Clear existing timeout
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current)
@@ -178,7 +178,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       
       // Set new timeout
       autoSaveTimeoutRef.current = setTimeout(() => {
-        autoSave(data)
+        autoSave(mergedData) // Use merged data, not the raw input
       }, 2000) // Save after 2 seconds of inactivity
     }
   }

@@ -329,7 +329,7 @@ function ModernTemplate({ cvData }: { cvData: any }) {
           <div className="flex flex-wrap gap-2">
             {cvData.skills.map((skill: any, index: number) => (
               <span key={index} className="bg-primary-100 text-primary-800 px-3 py-1 rounded-full text-sm">
-                {skill?.name || 'Skill'} {skill?.level && `(${skill?.level})`}
+                {typeof skill === 'string' ? skill : (skill?.name || 'Skill')} {skill?.level && `(${skill?.level})`}
               </span>
             ))}
           </div>
@@ -432,7 +432,7 @@ function CreativeTemplate({ cvData }: { cvData: any }) {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {cvData.skills.map((skill: any, index: number) => (
                 <div key={index} className="bg-gradient-to-r from-purple-100 to-pink-100 p-3 rounded-lg text-center">
-                  <span className="font-medium text-gray-900">{skill?.name || 'Skill'}</span>
+                  <span className="font-medium text-gray-900">{typeof skill === 'string' ? skill : (skill?.name || 'Skill')}</span>
                   {skill?.level && <span className="text-sm text-purple-600 block">({skill?.level})</span>}
                 </div>
               ))}
@@ -518,7 +518,7 @@ function MinimalistTemplate({ cvData }: { cvData: any }) {
             <div className="flex flex-wrap gap-2">
               {cvData.skills.map((skill: any, index: number) => (
                 <span key={index} className="text-sm text-gray-700 border border-gray-300 px-2 py-1 rounded">
-                  {skill?.name || "Skill"}
+                  {typeof skill === 'string' ? skill : (skill?.name || "Skill")}
                 </span>
               ))}
             </div>
@@ -597,8 +597,8 @@ function ExecutiveTemplate({ cvData }: { cvData: any }) {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {cvData.skills.map((skill: any, index: number) => (
                 <div key={index} className="bg-gray-100 p-3 rounded">
-                  <span className="font-medium text-gray-900">{skill?.name || "Skill"}</span>
-                  <span className="text-gray-600 text-sm block">({skill?.level})</span>
+                  <span className="font-medium text-gray-900">{typeof skill === 'string' ? skill : (skill?.name || "Skill")}</span>
+                  {skill?.level && <span className="text-gray-600 text-sm block">({skill?.level})</span>}
                 </div>
               ))}
             </div>
@@ -675,7 +675,7 @@ function AcademicTemplate({ cvData }: { cvData: any }) {
             <div className="flex flex-wrap gap-2">
               {cvData.skills.map((skill: any, index: number) => (
                 <span key={index} className="bg-gray-100 text-gray-800 px-3 py-1 rounded text-sm">
-                  {skill?.name || "Skill"}
+                  {typeof skill === 'string' ? skill : (skill?.name || "Skill")}
                 </span>
               ))}
             </div>
@@ -752,8 +752,8 @@ function StartupTemplate({ cvData }: { cvData: any }) {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {cvData.skills.map((skill: any, index: number) => (
                 <div key={index} className="bg-gradient-to-r from-blue-100 to-purple-100 p-3 rounded-lg text-center">
-                  <span className="font-medium text-gray-900">{skill?.name || "Skill"}</span>
-                  <span className="text-sm text-blue-600 block">({skill?.level})</span>
+                  <span className="font-medium text-gray-900">{typeof skill === 'string' ? skill : (skill?.name || "Skill")}</span>
+                  {skill?.level && <span className="text-sm text-blue-600 block">({skill?.level})</span>}
                 </div>
               ))}
             </div>
