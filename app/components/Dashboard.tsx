@@ -114,28 +114,55 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   const handleCVDataUpdate = (data: any) => {
+    console.log('Received CV data update:', data)
+    
     // Merge new data with existing data (don't overwrite existing fields)
+    // Remove duplicates by checking if item already exists
+    const existingExperiences = cvData?.experiences || []
+    const newExperiences = data?.experiences || data?.experience || []
+    const mergedExperiences = [...existingExperiences]
+    
+    // Only add new experiences that don't already exist
+    newExperiences.forEach((newExp: any) => {
+      const isDuplicate = existingExperiences.some((existing: any) => 
+        existing.company === newExp.company && existing.position === newExp.position
+      )
+      if (!isDuplicate) {
+        mergedExperiences.push(newExp)
+      }
+    })
+    
+    const existingEducation = cvData?.education || []
+    const newEducation = data?.education || []
+    const mergedEducation = [...existingEducation]
+    
+    // Only add new education that don't already exist
+    newEducation.forEach((newEdu: any) => {
+      const isDuplicate = existingEducation.some((existing: any) => 
+        existing.institution === newEdu.institution && existing.field === newEdu.field
+      )
+      if (!isDuplicate) {
+        mergedEducation.push(newEdu)
+      }
+    })
+    
+    const existingSkills = cvData?.skills || []
+    const newSkills = data?.skills || []
+    const mergedSkills = Array.from(new Set([...existingSkills, ...newSkills])) // Remove duplicate skills
+    
     const mergedData = {
       title: cvData?.title || 'My CV',
       personalInfo: {
         ...(cvData?.personalInfo || {}),
         ...(data?.personalInfo || {})
       },
-      experiences: [
-        ...(cvData?.experiences || []),
-        ...(data?.experiences || data?.experience || [])
-      ],
-      education: [
-        ...(cvData?.education || []),
-        ...(data?.education || [])
-      ],
-      skills: [
-        ...(cvData?.skills || []),
-        ...(data?.skills || [])
-      ],
+      experiences: mergedExperiences,
+      education: mergedEducation,
+      skills: mergedSkills,
       template: cvData?.template || data?.template || { id: 'modern', name: 'Modern' }
     }
     
+    console.log('Merged CV data:', mergedData)
     setCVData(mergedData)
     
     // Save to localStorage immediately (instant backup)

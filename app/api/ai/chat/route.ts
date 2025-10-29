@@ -53,6 +53,20 @@ export async function POST(request: NextRequest) {
     const { message, conversationHistory } = body
 
     let response: string | null = null
+    let cvData = null
+
+    // Prepare full conversation for extraction
+    const fullConversation = conversationHistory
+      .map((msg: any) => msg.content)
+      .join(' ') + ' ' + message
+
+    // Check if there's relevant CV info
+    const hasRelevantInfo = 
+      fullConversation.toLowerCase().includes('nama') || 
+      fullConversation.toLowerCase().includes('saya') ||
+      fullConversation.toLowerCase().includes('pengalaman') || 
+      fullConversation.toLowerCase().includes('pendidikan') || 
+      fullConversation.toLowerCase().includes('skill')
 
     // Check if OpenAI is available
     if (openai && process.env.OPENAI_API_KEY) {
@@ -93,26 +107,49 @@ Format respons:
       })
 
       response = completion.choices[0].message.content
+      
+      // NEW: Ask OpenAI to also extract structured CV data
+      if (hasRelevantInfo) {
+        try {
+          const extractionPrompt = await openai.chat.completions.create({
+            model: 'gpt-3.5-turbo',
+            messages: [
+              {
+                role: 'system',
+                content: 'Extract CV data from conversation into JSON format. Return ONLY valid JSON with fields: personalInfo (name, email, phone, address, summary), experiences (array with company, position, duration, description), education (array with institution, degree, field, year), skills (array of strings). If field not found, use empty string/array. DO NOT include placeholder text like "Informasi dari chat".'
+              },
+              {
+                role: 'user',
+                content: fullConversation
+              }
+            ],
+            max_tokens: 500,
+            temperature: 0.1,
+          })
+          
+          const jsonResponse = extractionPrompt.choices[0].message.content
+          if (jsonResponse) {
+            try {
+              const extracted = JSON.parse(jsonResponse.replace(/```json|```/g, '').trim())
+              if (extracted && typeof extracted === 'object') {
+                cvData = extracted
+                console.log('OpenAI Extracted CV Data:', JSON.stringify(cvData, null, 2))
+              }
+            } catch (parseError) {
+              console.error('Failed to parse OpenAI extraction:', parseError)
+            }
+          }
+        } catch (extractError) {
+          console.error('OpenAI extraction failed, using fallback:', extractError)
+        }
+      }
     } else {
       // Fallback response when OpenAI is not available
       response = generateFallbackResponse(message)
     }
 
-    // Try to extract CV data from the entire conversation history
-    let cvData = null
-    const fullConversation = conversationHistory
-      .map((msg: any) => msg.content)
-      .join(' ') + ' ' + message
-    
-    // Check if there's enough information to extract
-    const hasRelevantInfo = 
-      fullConversation.toLowerCase().includes('nama') || 
-      fullConversation.toLowerCase().includes('saya') ||
-      fullConversation.toLowerCase().includes('pengalaman') || 
-      fullConversation.toLowerCase().includes('pendidikan') || 
-      fullConversation.toLowerCase().includes('skill')
-    
-    if (hasRelevantInfo) {
+    // Only use manual extraction if OpenAI extraction failed
+    if (!cvData && hasRelevantInfo) {
       // Extract from full conversation context
       const extractedData = {
         personalInfo: {
@@ -122,7 +159,7 @@ Format respons:
           address: extractAddress(fullConversation),
           summary: extractSummary(fullConversation)
         },
-        experiences: extractExperience(fullConversation), // Changed to 'experiences' to match CVData interface
+        experiences: extractExperience(fullConversation),
         education: extractEducation(fullConversation),
         skills: extractSkills(fullConversation)
       }
@@ -133,7 +170,7 @@ Format respons:
           extractedData.education.length > 0 || 
           extractedData.skills.length > 0) {
         cvData = extractedData
-        console.log('Extracted CV Data:', JSON.stringify(cvData, null, 2))
+        console.log('Manual Extracted CV Data:', JSON.stringify(cvData, null, 2))
       }
     }
 
