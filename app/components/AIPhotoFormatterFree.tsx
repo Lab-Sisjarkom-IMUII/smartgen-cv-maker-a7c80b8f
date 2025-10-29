@@ -18,7 +18,7 @@ const BACKGROUND_COLORS: BackgroundColor[] = [
   { name: 'Abu-abu', value: 'gray', hex: '#6b7280' },
 ]
 
-export default function AIPhotoFormatterFree() {
+export default function AIPhotoFormatterFree({ onSave }: { onSave?: (dataUrl: string) => void }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string>('')
   const [processedUrl, setProcessedUrl] = useState<string>('')
@@ -381,6 +381,17 @@ export default function AIPhotoFormatterFree() {
                       <Download className="w-5 h-5 mr-2" />
                       Download Foto Formal
                     </button>
+                    {onSave && (
+                      <button
+                        onClick={() => {
+                          onSave(processedUrl)
+                          toast.success('Foto berhasil disimpan ke CV')
+                        }}
+                        className="px-6 py-4 border-2 border-gray-300 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                      >
+                        Gunakan di CV
+                      </button>
+                    )}
                     <button
                       onClick={resetForm}
                       className="px-6 py-4 border-2 border-gray-300 rounded-xl font-semibold hover:bg-gray-50 transition-colors"

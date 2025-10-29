@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import { 
@@ -15,6 +15,7 @@ import {
   Edit3
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import AIPhotoFormatterFree from './AIPhotoFormatterFree'
 
 interface CVData {
   personalInfo: {
@@ -74,6 +75,7 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
 
   const [activeSection, setActiveSection] = useState('personal')
   const [isEditing, setIsEditing] = useState(false)
+  const [showAIModal, setShowAIModal] = useState(false)
 
   useEffect(() => {
     if (cvData) {
@@ -311,6 +313,7 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
                       personalInfo: { ...prev.personalInfo, [field]: value }
                     }))
                   }
+                  openAIModal={() => setShowAIModal(true)}
                 />
               )}
 
@@ -353,13 +356,38 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
           </div>
         </div>
       </div>
+
+        {/* AI Photo Modal */}
+        {showAIModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center">
+            <div className="bg-white rounded-lg w-full max-w-4xl p-6 relative">
+              <button
+                onClick={() => setShowAIModal(false)}
+                className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
+              >
+                ✕
+              </button>
+              {/* Lazy-load AI component with callback */}
+              <AIPhotoFormatterFree
+                onSave={(dataUrl: string) => {
+                  // set into personalInfo.photo and close modal
+                  setData(prev => ({
+                    ...prev,
+                    personalInfo: { ...prev.personalInfo, photo: dataUrl }
+                  }))
+                  setShowAIModal(false)
+                }}
+              />
+            </div>
+          </div>
+        )}
     </div>
   )
 }
 
 // Component sections
-function PersonalInfoSection({ data, onChange }: any) {
-  const fileInputRef = React.createRef<HTMLInputElement>()
+function PersonalInfoSection({ data, onChange, openAIModal }: any) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string>(data?.photo || '')
   const [isProcessing, setIsProcessing] = useState(false)
   const [bgRemovalModule, setBgRemovalModule] = useState<any>(null)
@@ -378,7 +406,7 @@ function PersonalInfoSection({ data, onChange }: any) {
     }
   }, [])
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: any) => {
     const file = e.target.files?.[0]
     if (!file) return
     if (!file.type.startsWith('image/')) return
@@ -523,7 +551,7 @@ function PersonalInfoSection({ data, onChange }: any) {
           </div>
 
           <div className="flex-1">
-            <div className="flex gap-2 mb-2">
+              <div className="flex gap-2 mb-2">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -546,6 +574,13 @@ function PersonalInfoSection({ data, onChange }: any) {
               >
                 {isProcessing ? 'Memproses...' : 'Gunakan AI (hapus background)'}
               </button>
+                <button
+                  type="button"
+                  onClick={() => openAIModal && openAIModal()}
+                  className="px-4 py-2 border rounded-lg"
+                >
+                  Pilih dari AI
+                </button>
             </div>
             <p className="text-sm text-gray-500">Anda bisa langsung upload foto atau gunakan fitur AI untuk membuat foto formal (background removal).</p>
           </div>
