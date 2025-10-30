@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import Cropper from 'react-easy-crop'
 import { useSession } from 'next-auth/react'
 import { motion } from 'framer-motion'
 import { 
@@ -76,6 +77,10 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
   const [activeSection, setActiveSection] = useState('personal')
   const [isEditing, setIsEditing] = useState(false)
   const [showAIModal, setShowAIModal] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [lastSnapshot, setLastSnapshot] = useState<any>(null)
+  const [undoTimer, setUndoTimer] = useState<any>(null)
+  const [showUndoBanner, setShowUndoBanner] = useState(false)
 
   useEffect(() => {
     if (cvData) {
@@ -274,6 +279,13 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
                 <Save className="w-4 h-4" />
                 <span>Simpan CV</span>
               </button>
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="w-full mt-3 border border-red-200 text-red-600 py-2 px-4 rounded-lg hover:bg-red-50 flex items-center justify-center space-x-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Hapus Data</span>
+              </button>
             </div>
           </div>
         </div>
@@ -384,6 +396,98 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
             </div>
           </div>
         )}
+        {/* Undo banner */}
+        {showUndoBanner && lastSnapshot && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+            <div className="bg-white border shadow-md rounded-lg px-4 py-3 flex items-center gap-4">
+              <div className="text-sm">Data CV telah dihapus. <strong>Undo?</strong></div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (!lastSnapshot) return
+                    setData(lastSnapshot)
+                    onDataUpdate && onDataUpdate(lastSnapshot)
+                    setShowUndoBanner(false)
+                    if (undoTimer) {
+                      clearTimeout(undoTimer)
+                      setUndoTimer(null)
+                    }
+                    setLastSnapshot(null)
+                    toast.success('Perubahan dibatalkan (undo)')
+                  }}
+                  className="px-3 py-1 bg-primary-600 text-white rounded"
+                >
+                  Undo
+                </button>
+                <button
+                  onClick={() => {
+                    setShowUndoBanner(false)
+                    if (undoTimer) {
+                      clearTimeout(undoTimer)
+                      setUndoTimer(null)
+                    }
+                    setLastSnapshot(null)
+                  }}
+                  className="px-3 py-1 border rounded"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Clear confirm modal */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center">
+            <div className="bg-white rounded-lg w-full max-w-md p-6">
+              <h3 className="text-lg font-semibold mb-2">Hapus semua data CV?</h3>
+              <p className="text-sm text-gray-600 mb-4">Tindakan ini akan mengosongkan semua bidang pada CV saat ini. Data yang sudah tersimpan di server tidak akan dihapus otomatis.</p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowClearConfirm(false)} className="px-4 py-2 rounded-lg border">Batal</button>
+                <button
+                  onClick={() => {
+                    // reset to defaults
+                    const defaultPersonal = {
+                      name: '',
+                      email: '',
+                      phone: '',
+                      address: '',
+                      summary: ''
+                    }
+                    const cleared = {
+                      personalInfo: defaultPersonal,
+                      experience: [],
+                      education: [],
+                      skills: [],
+                      languages: []
+                    }
+                    setData(cleared as any)
+                    onDataUpdate && onDataUpdate(cleared)
+                    setShowClearConfirm(false)
+                    toast.success('Semua data CV telah dihapus (local). Jangan lupa simpan.')
+                    // keep a snapshot to allow undo
+                    try {
+                      setLastSnapshot(data)
+                      setShowUndoBanner(true)
+                      if (undoTimer) clearTimeout(undoTimer)
+                      const t = setTimeout(() => {
+                        setShowUndoBanner(false)
+                        setLastSnapshot(null)
+                        setUndoTimer(null)
+                      }, 8000)
+                      setUndoTimer(t)
+                    } catch (e) {
+                      console.warn('Failed to setup undo snapshot', e)
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg"
+                >
+                  Hapus
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   )
 }
@@ -394,6 +498,11 @@ function PersonalInfoSection({ data, onChange, openAIModal }: any) {
   const [previewUrl, setPreviewUrl] = useState<string>(data?.photo || '')
   const [isProcessing, setIsProcessing] = useState(false)
   const [bgRemovalModule, setBgRemovalModule] = useState<any>(null)
+  const [showCropModal, setShowCropModal] = useState(false)
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [rotation, setRotation] = useState(0)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
 
   useEffect(() => {
     // keep preview in sync when parent data changes
@@ -434,7 +543,59 @@ function PersonalInfoSection({ data, onChange, openAIModal }: any) {
     setIsProcessing(true)
     try {
       toast.loading('Memproses foto...')
-      const blob = await bgRemovalModule.removeBackground(previewUrl, { model: 'small', output: { format: 'image/png' } })
+
+      // helper: upscale a small image via canvas to increase chance of successful bg removal
+      const upscaleImage = async (src: string, minDim = 600) => {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const i = new Image()
+          i.setAttribute('crossOrigin', 'anonymous')
+          i.onload = () => resolve(i)
+          i.onerror = (e) => reject(e)
+          i.src = src
+        })
+        const w = img.width
+        const h = img.height
+        if (w >= minDim || h >= minDim) return src
+        const scale = Math.max(minDim / w, minDim / h)
+        const tw = Math.round(w * scale)
+        const th = Math.round(h * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = tw
+        canvas.height = th
+        const ctx = canvas.getContext('2d')
+        if (!ctx) throw new Error('Canvas not supported')
+        // use smoothing for better upscaling
+        ctx.imageSmoothingEnabled = true
+        ;(ctx as any).imageSmoothingQuality = 'high'
+        ctx.drawImage(img, 0, 0, tw, th)
+        return canvas.toDataURL('image/png')
+      }
+
+      // check resolution and upscale if necessary
+      const checkImg = new Image()
+      const minW = 400
+      const minH = 400
+      const imgLoadPromise: Promise<void> = new Promise((resolve, reject) => {
+        checkImg.onload = () => resolve()
+        checkImg.onerror = () => reject(new Error('IMAGE_LOAD_ERROR'))
+        checkImg.src = previewUrl
+      })
+      await imgLoadPromise
+
+      let sourceForProcessing = previewUrl
+      if ((checkImg.width || 0) < minW || (checkImg.height || 0) < minH) {
+        console.info('Image low-res, attempting upscale before AI processing', { width: checkImg.width, height: checkImg.height })
+        try {
+          const up = await upscaleImage(previewUrl, 800)
+          sourceForProcessing = up
+          // update preview so user sees the upscaled image before processing
+          setPreviewUrl(up)
+        } catch (upErr) {
+          console.warn('Upscale failed, proceeding with original image', upErr)
+        }
+      }
+
+      const blob = await bgRemovalModule.removeBackground(sourceForProcessing, { model: 'small', output: { format: 'image/png' } })
       const img = new Image()
       img.src = URL.createObjectURL(blob)
       await new Promise((r) => (img.onload = r))
@@ -455,10 +616,80 @@ function PersonalInfoSection({ data, onChange, openAIModal }: any) {
       toast.success('Foto berhasil diproses')
     } catch (err) {
       console.error('Process AI photo error', err)
-      toast.error('Gagal memproses foto')
+      // Better messaging for common failures
+      const msg = (err as Error)?.message || ''
+      if (msg.includes('LOW_RES')) {
+        toast.error('Gagal memproses foto. Gunakan foto dengan pencahayaan lebih baik dan resolusi >= 400x400.')
+      } else if (msg.includes('IMAGE_LOAD_ERROR')) {
+        toast.error('Gagal memuat foto untuk diproses. Coba upload ulang atau pilih file lain.')
+      } else {
+        toast.error('Gagal memproses foto. Coba lagi atau pilih foto dari fitur AI.')
+      }
+
+      // fallback: offer AI modal so user can try alternative formatter
+      openAIModal && openAIModal()
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  const onCropComplete = (_: any, croppedPixels: any) => {
+    setCroppedAreaPixels(croppedPixels)
+  }
+
+  // helper to create a cropped image from the source image and crop area
+  const getCroppedImg = async (imageSrc: string, pixelCrop: any, rotation = 0): Promise<string> => {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image()
+      img.setAttribute('crossOrigin', 'anonymous')
+      img.onload = () => resolve(img)
+      img.onerror = (e) => reject(e)
+      img.src = imageSrc
+    })
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas not supported')
+
+    const rot = rotation * (Math.PI / 180)
+
+    // calculate bounding box of the rotated image
+    const { width: bBoxWidth, height: bBoxHeight } = (() => {
+      const w = image.width
+      const h = image.height
+      const cos = Math.abs(Math.cos(rot))
+      const sin = Math.abs(Math.sin(rot))
+      return { width: Math.floor(w * cos + h * sin), height: Math.floor(w * sin + h * cos) }
+    })()
+
+    canvas.width = pixelCrop.width
+    canvas.height = pixelCrop.height
+
+    // draw rotated image to an offscreen canvas then crop
+    const offCanvas = document.createElement('canvas')
+    offCanvas.width = bBoxWidth
+    offCanvas.height = bBoxHeight
+    const offCtx = offCanvas.getContext('2d')
+    if (!offCtx) throw new Error('Canvas not supported')
+
+    // move to center
+    offCtx.translate(bBoxWidth / 2, bBoxHeight / 2)
+    offCtx.rotate(rot)
+    offCtx.translate(-image.width / 2, -image.height / 2)
+    offCtx.drawImage(image, 0, 0)
+
+    // crop the desired area from the rotated image
+    const sx = pixelCrop.x
+    const sy = pixelCrop.y
+    const sWidth = pixelCrop.width
+    const sHeight = pixelCrop.height
+
+    const imageData = offCtx.getImageData(sx, sy, sWidth, sHeight)
+    canvas.width = sWidth
+    canvas.height = sHeight
+    ctx.putImageData(imageData, 0, 0)
+
+    return canvas.toDataURL('image/png')
   }
 
   return (
@@ -577,6 +808,13 @@ function PersonalInfoSection({ data, onChange, openAIModal }: any) {
               >
                 {isProcessing ? 'Memproses...' : 'Gunakan AI (hapus background)'}
               </button>
+              <button
+                  type="button"
+                  onClick={() => setShowCropModal(true)}
+                  className="px-4 py-2 border rounded-lg"
+                >
+                  Crop & Simpan
+                </button>
                 <button
                   type="button"
                   onClick={() => openAIModal && openAIModal()}
@@ -589,6 +827,58 @@ function PersonalInfoSection({ data, onChange, openAIModal }: any) {
           </div>
         </div>
       </div>
+      {/* Crop Modal */}
+      {showCropModal && previewUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg w-full max-w-3xl p-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-semibold">Crop Foto</h3>
+              <button onClick={() => setShowCropModal(false)} className="text-gray-600">Batal</button>
+            </div>
+            <div className="relative w-full h-[420px] bg-gray-100">
+              <Cropper
+                image={previewUrl}
+                crop={crop}
+                zoom={zoom}
+                rotation={rotation}
+                aspect={3 / 4}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onRotationChange={setRotation}
+                onCropComplete={onCropComplete}
+              />
+            </div>
+            <div className="mt-3 flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm">Zoom</label>
+                <input type="range" min={1} max={3} step={0.01} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm">Rotate</label>
+                <input type="range" min={0} max={360} step={1} value={rotation} onChange={(e) => setRotation(Number(e.target.value))} />
+              </div>
+              <div className="flex-1 text-right">
+                <button
+                  onClick={async () => {
+                    try {
+                      if (!croppedAreaPixels) throw new Error('No crop selected')
+                      const cropped = await getCroppedImg(previewUrl, croppedAreaPixels, rotation)
+                      setPreviewUrl(cropped)
+                      onChange('photo', cropped)
+                      setShowCropModal(false)
+                    } catch (err) {
+                      console.error('Crop failed', err)
+                    }
+                  }}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg"
+                >
+                  Terapkan & Simpan
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

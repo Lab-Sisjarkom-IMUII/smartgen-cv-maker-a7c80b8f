@@ -30,7 +30,8 @@
     "react-hot-toast": "^2.4.1",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
-    "tailwindcss": "^3.3.0"
+    "tailwindcss": "^3.3.0",
+    "react-easy-crop": "^4.1.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -42,3 +43,4 @@
     "typescript": "^5.0.0"
   }
 }
+
