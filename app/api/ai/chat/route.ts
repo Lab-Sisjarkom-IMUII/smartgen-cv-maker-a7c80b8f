@@ -188,11 +188,13 @@ Format respons:
   } catch (error: any) {
     console.error('AI Chat API error:', error)
     
-    // Return a friendly fallback response
+    // Return a friendly fallback response and include the error message for debugging
+    // NOTE: This includes an error message in the response temporarily to help debug production issues.
     return NextResponse.json({
       response: 'Maaf, terjadi kesalahan saat memproses pesan Anda. Silakan coba lagi atau lanjutkan dengan mengisi form CV secara manual.',
       cvData: null,
-      warning: 'Terjadi kesalahan pada sistem AI. Anda masih bisa mengisi CV secara manual.'
+      warning: 'Terjadi kesalahan pada sistem AI. Anda masih bisa mengisi CV secara manual.',
+      errorMessage: (error && (error.message || String(error))) || 'unknown error'
     })
   }
 }
