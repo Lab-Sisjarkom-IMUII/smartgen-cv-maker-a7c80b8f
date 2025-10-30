@@ -99,14 +99,40 @@ Format respons:
         }
       ]
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',  // Use GPT-3.5 (cheaper than GPT-4)
-        messages: messages as any,
-        max_tokens: RATE_LIMIT.maxTokensPerRequest,  // Limit response length
-        temperature: 0.7,
-      })
+      // Use direct fetch to OpenAI API instead of SDK to avoid connection issues in some server environments
+      try {
+        const payload = {
+          model: 'gpt-3.5-turbo',
+          messages: messages,
+          max_tokens: RATE_LIMIT.maxTokensPerRequest,
+          temperature: 0.7
+        }
 
-      response = completion.choices[0].message.content
+        const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+          },
+          body: JSON.stringify(payload)
+        })
+
+        const openaiJson = await openaiRes.json()
+        response = openaiJson?.choices?.[0]?.message?.content || null
+        if (!response && openaiJson?.error) {
+          throw new Error(openaiJson.error.message || 'OpenAI API error')
+        }
+      } catch (fetchErr) {
+        // If direct fetch fails, fallback to SDK call (if available) to capture more details
+        console.warn('Direct fetch to OpenAI failed, attempting SDK call as fallback', fetchErr)
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          messages: messages as any,
+          max_tokens: RATE_LIMIT.maxTokensPerRequest,
+          temperature: 0.7
+        })
+        response = completion.choices[0].message.content
+      }
       
       // NEW: Ask OpenAI to also extract structured CV data
       if (hasRelevantInfo) {
