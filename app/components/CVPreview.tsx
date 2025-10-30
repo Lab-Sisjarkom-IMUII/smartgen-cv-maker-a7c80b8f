@@ -27,6 +27,75 @@ export default function CVPreview({ cvData, template }: CVPreviewProps) {
     experience: cvData?.experience || cvData?.experiences || [],
     languages: cvData?.languages || cvData?.language || [],
   }
+  // Sanitize / tidy up fields coming from AI extraction
+  const sanitizeText = (s: any) => {
+    if (!s && s !== 0) return ''
+    try {
+      return String(s).replace(/\s+/g, ' ').trim()
+    } catch {
+      return ''
+    }
+  }
+
+  const sanitizedCvData = (() => {
+    const out: any = { ...normalizedCvData }
+    // personalInfo
+    out.personalInfo = {
+      name: sanitizeText(out.personalInfo?.name),
+      email: sanitizeText(out.personalInfo?.email),
+      phone: sanitizeText(out.personalInfo?.phone),
+      address: sanitizeText(out.personalInfo?.address),
+      summary: sanitizeText(out.personalInfo?.summary),
+      photo: out.personalInfo?.photo
+    }
+
+    // experiences: ensure fields exist and trim, remove accidental duplication of name as position
+    out.experience = (out.experience || []).map((e: any) => {
+      const position = sanitizeText(e?.position)
+      const company = sanitizeText(e?.company)
+      const duration = sanitizeText(e?.duration)
+      let description = sanitizeText(e?.description)
+
+      // If position equals the person's name (common AI mistake), clear it
+      if (out.personalInfo?.name && position && position.toLowerCase().includes(out.personalInfo.name.toLowerCase())) {
+        // Remove the name from position
+        const cleaned = position.replace(new RegExp(out.personalInfo.name, 'ig'), '').replace(/^[,\s-:]+/, '')
+        // if nothing left, set to empty
+        if (!cleaned.trim()) {
+          // move any leftover into description if description is empty
+          if (!description) description = position
+          return { company, position: '', duration, description }
+        }
+        return { company, position: cleaned.trim(), duration, description }
+      }
+
+      return { company, position, duration, description }
+    })
+
+    // education
+    out.education = (out.education || []).map((edu: any) => ({
+      institution: sanitizeText(edu?.institution),
+      degree: sanitizeText(edu?.degree),
+      field: sanitizeText(edu?.field),
+      year: sanitizeText(edu?.year)
+    }))
+
+    // skills: normalize shapes, prefer strings
+    out.skills = (out.skills || []).map((s: any) => {
+      if (!s) return ''
+      if (typeof s === 'string') return sanitizeText(s)
+      return sanitizeText(s?.name || '')
+    }).filter((v: string) => !!v)
+
+    // languages
+    out.languages = (out.languages || []).map((l: any) => {
+      if (!l) return ''
+      if (typeof l === 'string') return sanitizeText(l)
+      return sanitizeText(l?.name || '')
+    }).filter((v: string) => !!v)
+
+    return out
+  })()
   const [isGenerating, setIsGenerating] = useState(false)
   const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop')
   const cvRef = useRef<HTMLDivElement>(null)
@@ -237,12 +306,12 @@ export default function CVPreview({ cvData, template }: CVPreviewProps) {
             }}
           >
             {/* CV Content based on template (use normalized data to avoid merged fields) */}
-            {activeTemplate === 'modern' && <ModernTemplate cvData={normalizedCvData} />}
-            {activeTemplate === 'creative' && <CreativeTemplate cvData={normalizedCvData} />}
-            {activeTemplate === 'minimalist' && <MinimalistTemplate cvData={normalizedCvData} />}
-            {activeTemplate === 'executive' && <ExecutiveTemplate cvData={normalizedCvData} />}
-            {activeTemplate === 'academic' && <AcademicTemplate cvData={normalizedCvData} />}
-            {activeTemplate === 'startup' && <StartupTemplate cvData={normalizedCvData} />}
+            {activeTemplate === 'modern' && <ModernTemplate cvData={sanitizedCvData} />}
+            {activeTemplate === 'creative' && <CreativeTemplate cvData={sanitizedCvData} />}
+            {activeTemplate === 'minimalist' && <MinimalistTemplate cvData={sanitizedCvData} />}
+            {activeTemplate === 'executive' && <ExecutiveTemplate cvData={sanitizedCvData} />}
+            {activeTemplate === 'academic' && <AcademicTemplate cvData={sanitizedCvData} />}
+            {activeTemplate === 'startup' && <StartupTemplate cvData={sanitizedCvData} />}
           </div>
         </div>
       </div>
