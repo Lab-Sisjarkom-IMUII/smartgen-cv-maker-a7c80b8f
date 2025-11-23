@@ -22,7 +22,7 @@ import AIChat from './AIChat'
 import CVBuilder from './CVBuilder'
 import TemplateSelector from './TemplateSelector'
 import CVPreview from './CVPreview'
-import AIPhotoFormatterFree from './AIPhotoFormatterFree'
+import AIPhotoFormatter from './AIPhotoFormatter'
 import CVSelector from './CVSelector'
 import CVHistoryPanel from './CVHistoryPanel'
 import { useCVData } from '@/hooks/useCVData'
@@ -390,7 +390,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           )}
           
           {activeTab === 'photo' && (
-            <AIPhotoFormatterFree />
+            <AIPhotoFormatter />
           )}
           
           {activeTab === 'preview' && (

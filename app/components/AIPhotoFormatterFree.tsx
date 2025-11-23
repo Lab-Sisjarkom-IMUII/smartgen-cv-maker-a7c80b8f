@@ -113,37 +113,16 @@ export default function AIPhotoFormatterFree({ onSave }: { onSave?: (dataUrl: st
       clearInterval(progressInterval)
       setProgress(95)
 
-      // Create a canvas to add the selected background color
-      const img = new Image()
-      img.src = URL.createObjectURL(imageBlob)
-      
-      await new Promise((resolve) => {
-        img.onload = resolve
-      })
+      // Post-process: smooth the alpha channel to reduce artifacts and harsh edges
+      const refinedBlob = await refineAlphaAndComposite(imageBlob, selectedColor.hex)
 
-      const canvas = document.createElement('canvas')
-      canvas.width = img.width
-      canvas.height = img.height
-      const ctx = canvas.getContext('2d')
-
-      if (!ctx) throw new Error('Failed to get canvas context')
-
-      // Fill background with selected color
-      ctx.fillStyle = selectedColor.hex
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-      // Draw the image with removed background on top
-      ctx.drawImage(img, 0, 0)
-
-      // Convert to blob and create URL
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob)
-          setProcessedUrl(url)
-          setProgress(100)
-          toast.success('Foto berhasil diubah menjadi foto formal! 🎉', { id: 'processing' })
-        }
-      }, 'image/png')
+      // Create object URL for processed image
+      if (refinedBlob) {
+        const url = URL.createObjectURL(refinedBlob)
+        setProcessedUrl(url)
+        setProgress(100)
+        toast.success('Foto berhasil diubah menjadi foto formal! 🎉', { id: 'processing' })
+      }
 
     } catch (error) {
       console.error('Error processing image:', error)
@@ -173,6 +152,123 @@ export default function AIPhotoFormatterFree({ onSave }: { onSave?: (dataUrl: st
     setProgress(0)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
+    }
+  }
+
+  // Helper: perform separable box blur on alpha channel to smooth edges
+  async function refineAlphaAndComposite(imageBlob: Blob, backgroundHex: string): Promise<Blob | null> {
+    try {
+      const img = new Image()
+      img.src = URL.createObjectURL(imageBlob)
+
+      await new Promise((resolve, reject) => {
+        img.onload = () => resolve(null)
+        img.onerror = (e) => reject(e)
+      })
+
+      const w = img.width
+      const h = img.height
+
+      // Draw removed-bg image to temp canvas
+      const temp = document.createElement('canvas')
+      temp.width = w
+      temp.height = h
+      const tctx = temp.getContext('2d')
+      if (!tctx) throw new Error('Failed to get temp canvas context')
+      tctx.clearRect(0, 0, w, h)
+      tctx.drawImage(img, 0, 0, w, h)
+
+      // Get image data and blur alpha channel
+      const imageData = tctx.getImageData(0, 0, w, h)
+      const data = imageData.data
+
+      // Extract alpha channel as float array
+      const alpha = new Float32Array(w * h)
+      for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+        alpha[p] = data[i + 3]
+      }
+
+      // Box blur radius (adjustable) - small radius smooths edges without losing detail
+      const radius = Math.max(1, Math.round(Math.min(w, h) / 150)) // ~1-5
+
+      // Horizontal pass
+      for (let y = 0; y < h; y++) {
+        let sum = 0
+        let count = 0
+        const rowStart = y * w
+        // init window
+        for (let x = 0; x <= radius && x < w; x++) {
+          sum += alpha[rowStart + x]
+          count++
+        }
+        for (let x = 0; x < w; x++) {
+          const idx = rowStart + x
+          const left = x - radius - 1
+          const right = x + radius
+          // set blurred value
+          alpha[idx] = sum / count
+          // slide window
+          if (left >= 0) {
+            sum -= imageData.data[(rowStart + left) * 4 + 3]
+            count--
+          }
+          if (right + 1 < w) {
+            sum += imageData.data[(rowStart + right + 1) * 4 + 3]
+            count++
+          }
+        }
+      }
+
+      // Vertical pass (write into a new buffer)
+      const alpha2 = new Float32Array(w * h)
+      for (let x = 0; x < w; x++) {
+        let sum = 0
+        let count = 0
+        for (let y = 0; y <= radius && y < h; y++) {
+          sum += alpha[y * w + x]
+          count++
+        }
+        for (let y = 0; y < h; y++) {
+          const idx = y * w + x
+          alpha2[idx] = sum / count
+          const top = y - radius - 1
+          const bottom = y + radius
+          if (top >= 0) {
+            sum -= alpha[top * w + x]
+            count--
+          }
+          if (bottom + 1 < h) {
+            sum += alpha[(bottom + 1) * w + x]
+            count++
+          }
+        }
+      }
+
+      // Write alpha back and clamp
+      for (let p = 0, i = 0; p < alpha2.length; p++, i += 4) {
+        const v = Math.max(0, Math.min(255, Math.round(alpha2[p])))
+        data[i + 3] = v
+      }
+      tctx.putImageData(imageData, 0, 0)
+
+      // Composite onto background color
+      const out = document.createElement('canvas')
+      out.width = w
+      out.height = h
+      const octx = out.getContext('2d')
+      if (!octx) throw new Error('Failed to get output canvas context')
+
+      octx.fillStyle = backgroundHex
+      octx.fillRect(0, 0, w, h)
+      octx.drawImage(temp, 0, 0)
+
+      // Convert to blob
+      return await new Promise<Blob | null>((resolve) => {
+        out.toBlob((b) => resolve(b), 'image/png')
+      })
+    } catch (err) {
+      console.error('refineAlphaAndComposite failed:', err)
+      return null
     }
   }
 
