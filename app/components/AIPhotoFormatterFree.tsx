@@ -178,75 +178,184 @@ export default function AIPhotoFormatterFree({ onSave }: { onSave?: (dataUrl: st
       tctx.clearRect(0, 0, w, h)
       tctx.drawImage(img, 0, 0, w, h)
 
-      // Get image data and blur alpha channel
+      // Get image data
       const imageData = tctx.getImageData(0, 0, w, h)
       const data = imageData.data
 
-      // Extract alpha channel as float array
-      const alpha = new Float32Array(w * h)
+      // Extract alpha channel as integer 0-255
+      const alpha = new Uint8ClampedArray(w * h)
       for (let i = 0, p = 0; i < data.length; i += 4, p++) {
         alpha[p] = data[i + 3]
       }
 
-      // Box blur radius (adjustable) - small radius smooths edges without losing detail
-      const radius = Math.max(1, Math.round(Math.min(w, h) / 150)) // ~1-5
-
-      // Horizontal pass
-      for (let y = 0; y < h; y++) {
-        let sum = 0
-        let count = 0
-        const rowStart = y * w
-        // init window
-        for (let x = 0; x <= radius && x < w; x++) {
-          sum += alpha[rowStart + x]
-          count++
+      // --- Connected-component filter: keep largest blob, remove small speckles ---
+      const visited = new Uint8Array(w * h)
+      let largestLabel = -1
+      let largestSize = 0
+      for (let i = 0; i < w * h; i++) {
+        if (visited[i] || alpha[i] < 16) continue // treat low alpha as background
+        // flood fill
+        let size = 0
+        const stack = [i]
+        visited[i] = 1
+        while (stack.length) {
+          const idx = stack.pop() as number
+          size++
+          const x = idx % w
+          const y = (idx / w) | 0
+          // neighbors 4-connected
+          if (x > 0) {
+            const n = idx - 1
+            if (!visited[n] && alpha[n] >= 16) { visited[n] = 1; stack.push(n) }
+          }
+          if (x < w - 1) {
+            const n = idx + 1
+            if (!visited[n] && alpha[n] >= 16) { visited[n] = 1; stack.push(n) }
+          }
+          if (y > 0) {
+            const n = idx - w
+            if (!visited[n] && alpha[n] >= 16) { visited[n] = 1; stack.push(n) }
+          }
+          if (y < h - 1) {
+            const n = idx + w
+            if (!visited[n] && alpha[n] >= 16) { visited[n] = 1; stack.push(n) }
+          }
         }
-        for (let x = 0; x < w; x++) {
-          const idx = rowStart + x
-          const left = x - radius - 1
-          const right = x + radius
-          // set blurred value
-          alpha[idx] = sum / count
-          // slide window
-          if (left >= 0) {
-            sum -= imageData.data[(rowStart + left) * 4 + 3]
-            count--
-          }
-          if (right + 1 < w) {
-            sum += imageData.data[(rowStart + right + 1) * 4 + 3]
-            count++
-          }
+        if (size > largestSize) {
+          largestSize = size
+          largestLabel = i
         }
       }
 
-      // Vertical pass (write into a new buffer)
-      const alpha2 = new Float32Array(w * h)
-      for (let x = 0; x < w; x++) {
-        let sum = 0
-        let count = 0
-        for (let y = 0; y <= radius && y < h; y++) {
-          sum += alpha[y * w + x]
-          count++
+      // If we found a largest label, create a mask keeping only that component
+      if (largestLabel !== -1) {
+        // Re-run flood fill from largestLabel to mark kept pixels
+        const keep = new Uint8Array(w * h)
+        const stack = [largestLabel]
+        keep[largestLabel] = 1
+        while (stack.length) {
+          const idx = stack.pop() as number
+          const x = idx % w
+          const y = (idx / w) | 0
+          if (x > 0) {
+            const n = idx - 1
+            if (!keep[n] && alpha[n] >= 16) { keep[n] = 1; stack.push(n) }
+          }
+          if (x < w - 1) {
+            const n = idx + 1
+            if (!keep[n] && alpha[n] >= 16) { keep[n] = 1; stack.push(n) }
+          }
+          if (y > 0) {
+            const n = idx - w
+            if (!keep[n] && alpha[n] >= 16) { keep[n] = 1; stack.push(n) }
+          }
+          if (y < h - 1) {
+            const n = idx + w
+            if (!keep[n] && alpha[n] >= 16) { keep[n] = 1; stack.push(n) }
+          }
         }
+        // Apply keep mask: zero alpha for others
+        for (let p = 0; p < alpha.length; p++) {
+          if (!keep[p]) alpha[p] = 0
+        }
+      }
+
+      // --- Morphological cleanup: small opening then closing ---
+      const morphIterations = 1
+      // simple 3x3 dilation/erosion
+      const dilate = (src: Uint8ClampedArray) => {
+        const out = new Uint8ClampedArray(src.length)
         for (let y = 0; y < h; y++) {
-          const idx = y * w + x
-          alpha2[idx] = sum / count
-          const top = y - radius - 1
-          const bottom = y + radius
-          if (top >= 0) {
-            sum -= alpha[top * w + x]
-            count--
+          for (let x = 0; x < w; x++) {
+            const idx = y * w + x
+            let v = 0
+            for (let yy = Math.max(0, y - 1); yy <= Math.min(h - 1, y + 1); yy++) {
+              for (let xx = Math.max(0, x - 1); xx <= Math.min(w - 1, x + 1); xx++) {
+                if (src[yy * w + xx] > 128) { v = 255; break }
+              }
+              if (v) break
+            }
+            out[idx] = v
           }
-          if (bottom + 1 < h) {
-            sum += alpha[(bottom + 1) * w + x]
-            count++
+        }
+        return out
+      }
+      const erode = (src: Uint8ClampedArray) => {
+        const out = new Uint8ClampedArray(src.length)
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const idx = y * w + x
+            let v = 255
+            for (let yy = Math.max(0, y - 1); yy <= Math.min(h - 1, y + 1); yy++) {
+              for (let xx = Math.max(0, x - 1); xx <= Math.min(w - 1, x + 1); xx++) {
+                if (src[yy * w + xx] <= 128) { v = 0; break }
+              }
+              if (!v) break
+            }
+            out[idx] = v
+          }
+        }
+        return out
+      }
+
+      let mask = new Uint8ClampedArray(alpha.length)
+      for (let i = 0; i < alpha.length; i++) mask[i] = alpha[i] > 128 ? 255 : 0
+      // opening (erode then dilate)
+      for (let it = 0; it < morphIterations; it++) {
+        mask = erode(mask)
+        mask = dilate(mask)
+      }
+      // closing (dilate then erode)
+      for (let it = 0; it < morphIterations; it++) {
+        mask = dilate(mask)
+        mask = erode(mask)
+      }
+
+      // Convert mask back into float alpha array for blurring
+      const alphaF = new Float32Array(w * h)
+      for (let i = 0; i < alpha.length; i++) alphaF[i] = mask[i]
+
+      // Multi-pass separable box blur to approximate gaussian (3 passes)
+      const radius = Math.max(1, Math.round(Math.min(w, h) / 120))
+      const boxBlurInPlace = (buf: Float32Array, r: number) => {
+        const tmp = new Float32Array(buf.length)
+        // horizontal
+        for (let y = 0; y < h; y++) {
+          let sum = 0
+          let count = 0
+          const row = y * w
+          for (let x = 0; x <= r && x < w; x++) { sum += buf[row + x]; count++ }
+          for (let x = 0; x < w; x++) {
+            tmp[row + x] = sum / count
+            const left = x - r
+            const right = x + r + 1
+            if (left >= 0) { sum -= buf[row + left]; count-- }
+            if (right < w) { sum += buf[row + right]; count++ }
+          }
+        }
+        // vertical into buf
+        for (let x = 0; x < w; x++) {
+          let sum = 0
+          let count = 0
+          for (let y = 0; y <= r && y < h; y++) { sum += tmp[y * w + x]; count++ }
+          for (let y = 0; y < h; y++) {
+            buf[y * w + x] = sum / count
+            const top = y - r
+            const bottom = y + r + 1
+            if (top >= 0) { sum -= tmp[top * w + x]; count-- }
+            if (bottom < h) { sum += tmp[bottom * w + x]; count++ }
           }
         }
       }
+
+      // apply 3 passes
+      boxBlurInPlace(alphaF, radius)
+      boxBlurInPlace(alphaF, radius)
+      boxBlurInPlace(alphaF, Math.max(1, Math.round(radius / 2)))
 
       // Write alpha back and clamp
-      for (let p = 0, i = 0; p < alpha2.length; p++, i += 4) {
-        const v = Math.max(0, Math.min(255, Math.round(alpha2[p])))
+      for (let p = 0, i = 0; p < alphaF.length; p++, i += 4) {
+        const v = Math.max(0, Math.min(255, Math.round(alphaF[p])))
         data[i + 3] = v
       }
       tctx.putImageData(imageData, 0, 0)
