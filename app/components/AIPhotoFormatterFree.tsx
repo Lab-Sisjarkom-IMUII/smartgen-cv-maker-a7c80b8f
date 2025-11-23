@@ -132,6 +132,60 @@ export default function AIPhotoFormatterFree({ onSave }: { onSave?: (dataUrl: st
     }
   }
 
+  const serverProcessImage = async () => {
+    if (!previewUrl) {
+      toast.error('Pilih foto terlebih dahulu')
+      return
+    }
+
+    setIsProcessing(true)
+    setProgress(0)
+
+    try {
+      toast.loading('Mengirim foto ke server OpenAI...', { id: 'processing' })
+      setProgress(10)
+
+      const resp = await fetch('/api/ai/photo/remove-bg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: previewUrl })
+      })
+
+      if (!resp.ok) {
+        const t = await resp.text()
+        console.error('Server remove-bg failed:', t)
+        toast.error('Server AI gagal memproses foto')
+        return
+      }
+
+      const json = await resp.json()
+      if (!json?.image) {
+        toast.error('Server AI tidak mengembalikan gambar')
+        return
+      }
+
+      setProgress(60)
+      // fetch blob from returned data URL and refine/composite locally
+      const r = await fetch(json.image)
+      const blob = await r.blob()
+      setProgress(75)
+      const refined = await refineAlphaAndComposite(blob, selectedColor.hex)
+      if (refined) {
+        const url = URL.createObjectURL(refined)
+        setProcessedUrl(url)
+        setProgress(100)
+        toast.success('Foto berhasil diubah menggunakan OpenAI! 🎉', { id: 'processing' })
+      } else {
+        toast.error('Gagal melakukan post-process gambar')
+      }
+    } catch (err) {
+      console.error('serverProcessImage error:', err)
+      toast.error('Gagal memproses foto di server')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   const downloadImage = () => {
     if (!processedUrl) return
 
@@ -568,6 +622,14 @@ export default function AIPhotoFormatterFree({ onSave }: { onSave?: (dataUrl: st
                           Ubah Jadi Foto Formal
                         </>
                       )}
+                    </button>
+                    <button
+                      onClick={serverProcessImage}
+                      disabled={isProcessing}
+                      className="flex-1 bg-gradient-to-r from-indigo-500 to-blue-600 text-white py-4 px-6 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Gunakan OpenAI (server)
                     </button>
                     <button
                       onClick={resetForm}
