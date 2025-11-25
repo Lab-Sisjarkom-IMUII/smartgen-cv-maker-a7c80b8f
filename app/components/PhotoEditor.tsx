@@ -45,19 +45,46 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string
       
-      // Convert to PNG (OpenAI only accepts PNG for image edit)
+      // Convert to PNG with size optimization (OpenAI requires PNG < 4MB)
       const img = new Image()
       img.onload = () => {
         const canvas = document.createElement('canvas')
-        canvas.width = img.width
-        canvas.height = img.height
+        
+        // Resize if image is too large (max 2000px to ensure < 4MB)
+        let width = img.width
+        let height = img.height
+        const maxDimension = 2000
+        
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = (height / width) * maxDimension
+            width = maxDimension
+          } else {
+            width = (width / height) * maxDimension
+            height = maxDimension
+          }
+        }
+        
+        canvas.width = width
+        canvas.height = height
         const ctx = canvas.getContext('2d')
         if (ctx) {
-          ctx.drawImage(img, 0, 0)
-          const pngDataUrl = canvas.toDataURL('image/png')
+          ctx.drawImage(img, 0, 0, width, height)
+          
+          // Convert to PNG with compression
+          const pngDataUrl = canvas.toDataURL('image/png', 0.9)
+          
+          // Check size (rough estimate: base64 length / 1.37)
+          const estimatedSizeKB = (pngDataUrl.length / 1.37) / 1024
+          
+          if (estimatedSizeKB > 4000) {
+            toast.error('Foto masih terlalu besar setelah kompresi. Coba foto dengan resolusi lebih kecil.')
+            return
+          }
+          
           setOriginalPhoto(pngDataUrl)
           setProcessedPhoto('')
-          toast.success('Foto berhasil diupload dan dikonversi ke PNG')
+          toast.success(`Foto berhasil diupload (${Math.round(estimatedSizeKB)}KB)`)
         }
       }
       img.src = dataUrl
