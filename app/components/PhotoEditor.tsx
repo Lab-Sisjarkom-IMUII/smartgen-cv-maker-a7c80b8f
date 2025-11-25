@@ -71,17 +71,8 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
 
     try {
       // Step 1: Remove background using @imgly/background-removal
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      
-      await new Promise((resolve, reject) => {
-        img.onload = resolve
-        img.onerror = reject
-        img.src = originalPhoto
-      })
-
-      // Remove background
-      const blob = await removeBackground(img, {
+      // Pass the data URL directly (library will handle image loading)
+      const blob = await removeBackground(originalPhoto, {
         progress: (key: string, current: number, total: number) => {
           console.log(`Removing background: ${Math.round((current / total) * 100)}%`)
         }
