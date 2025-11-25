@@ -1,31 +1,33 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Upload, Sparkles, Download, RotateCcw, Image as ImageIcon } from 'lucide-react'
+import { Upload, Palette, Download, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { removeBackground } from '@imgly/background-removal'
 
-const BACKGROUND_PRESETS = [
-  { id: 'office-luxury', label: 'Office Mewah', value: 'luxury office with bookshelves and warm lighting' },
-  { id: 'studio-modern', label: 'Studio Modern', value: 'modern studio with white background' },
-  { id: 'gradient-blue', label: 'Gradient Biru', value: 'professional blue gradient background' },
-  { id: 'gradient-gray', label: 'Gradient Abu', value: 'professional gray gradient background' },
-  { id: 'office-corporate', label: 'Office Korporat', value: 'corporate office environment' },
-  { id: 'garden', label: 'Taman Hijau', value: 'outdoor garden with green trees' },
-  { id: 'city', label: 'Kota Modern', value: 'modern city skyline background' },
-  { id: 'library', label: 'Perpustakaan', value: 'library with books background' },
+const BACKGROUND_COLORS = [
+  { id: 'white', label: 'Putih', value: '#FFFFFF' },
+  { id: 'light-gray', label: 'Abu Terang', value: '#F5F5F5' },
+  { id: 'blue-light', label: 'Biru Muda', value: '#E3F2FD' },
+  { id: 'blue', label: 'Biru', value: '#2196F3' },
+  { id: 'blue-dark', label: 'Biru Tua', value: '#1565C0' },
+  { id: 'gray', label: 'Abu-abu', value: '#9E9E9E' },
+  { id: 'navy', label: 'Navy', value: '#0D47A1' },
+  { id: 'teal', label: 'Teal', value: '#00897B' },
 ]
 
 interface PhotoEditorProps {
-  onPhotoChange?: (photoUrl: string) => void
+  onPhotoChange?: (photoDataUrl: string) => void
 }
 
 export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
-  const [originalPhoto, setOriginalPhoto] = useState<string>('')
-  const [processedPhoto, setProcessedPhoto] = useState<string>('')
-  const [selectedBackground, setSelectedBackground] = useState<string>(BACKGROUND_PRESETS[0].value)
-  const [customBackground, setCustomBackground] = useState<string>('')
+  const [originalPhoto, setOriginalPhoto] = useState<string | null>(null)
+  const [processedPhoto, setProcessedPhoto] = useState<string | null>(null)
+  const [selectedColor, setSelectedColor] = useState<string>('#FFFFFF')
+  const [customColor, setCustomColor] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -44,50 +46,9 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
     const reader = new FileReader()
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string
-      
-      // Convert to PNG with size optimization (OpenAI requires PNG < 4MB)
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        
-        // Resize if image is too large (max 2000px to ensure < 4MB)
-        let width = img.width
-        let height = img.height
-        const maxDimension = 2000
-        
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = (height / width) * maxDimension
-            width = maxDimension
-          } else {
-            width = (width / height) * maxDimension
-            height = maxDimension
-          }
-        }
-        
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height)
-          
-          // Convert to PNG with compression
-          const pngDataUrl = canvas.toDataURL('image/png', 0.9)
-          
-          // Check size (rough estimate: base64 length / 1.37)
-          const estimatedSizeKB = (pngDataUrl.length / 1.37) / 1024
-          
-          if (estimatedSizeKB > 4000) {
-            toast.error('Foto masih terlalu besar setelah kompresi. Coba foto dengan resolusi lebih kecil.')
-            return
-          }
-          
-          setOriginalPhoto(pngDataUrl)
-          setProcessedPhoto('')
-          toast.success(`Foto berhasil diupload (${Math.round(estimatedSizeKB)}KB)`)
-        }
-      }
-      img.src = dataUrl
+      setOriginalPhoto(dataUrl)
+      setProcessedPhoto(null)
+      toast.success('Foto berhasil diupload')
     }
     reader.readAsDataURL(file)
   }
@@ -98,64 +59,83 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
       return
     }
 
-    const backgroundDesc = customBackground.trim() || selectedBackground
+    const backgroundColor = customColor.trim() || selectedColor
 
-    if (!backgroundDesc) {
-      toast.error('Pilih atau masukkan deskripsi background')
+    if (!backgroundColor) {
+      toast.error('Pilih warna background')
       return
     }
 
     setIsProcessing(true)
-    const loadingToast = toast.loading('Memproses foto dengan OpenAI... Harap tunggu (10-30 detik)')
+    const loadingToast = toast.loading('Menghapus background dan menambahkan warna baru...')
 
     try {
-      const response = await fetch('/api/photo/change-background', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          image: originalPhoto,
-          background: backgroundDesc,
-        }),
+      // Step 1: Remove background using @imgly/background-removal
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      
+      await new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = reject
+        img.src = originalPhoto
       })
 
-      const result = await response.json()
-      
-      console.log('API Response:', { status: response.status, result })
-      
-      // Debug: show alert with error details
-      if (!response.ok) {
-        alert(`Error Details:\nStatus: ${response.status}\nError: ${result.error}\nDetails: ${result.details}`)
-      }
+      // Remove background
+      const blob = await removeBackground(img, {
+        progress: (key: string, current: number, total: number) => {
+          console.log(`Removing background: ${Math.round((current / total) * 100)}%`)
+        }
+      })
 
-      if (!response.ok) {
-        throw new Error(result.error || result.details || `HTTP ${response.status}`)
-      }
+      // Convert blob to image
+      const removedBgUrl = URL.createObjectURL(blob)
+      const removedBgImg = new Image()
+      
+      await new Promise((resolve, reject) => {
+        removedBgImg.onload = resolve
+        removedBgImg.onerror = reject
+        removedBgImg.src = removedBgUrl
+      })
 
-      if (result.success && result.image) {
-        setProcessedPhoto(result.image)
-        toast.success('Background berhasil diganti! 🎉', { id: loadingToast })
-      } else {
-        throw new Error(result.error || 'Tidak ada hasil gambar')
-      }
+      // Step 2: Composite with solid color background
+      const canvas = canvasRef.current || document.createElement('canvas')
+      canvas.width = removedBgImg.width
+      canvas.height = removedBgImg.height
+      
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas context not available')
+
+      // Draw solid color background
+      ctx.fillStyle = backgroundColor
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      // Draw person with transparent background on top
+      ctx.drawImage(removedBgImg, 0, 0)
+
+      // Convert to data URL
+      const resultDataUrl = canvas.toDataURL('image/png', 0.95)
+      
+      setProcessedPhoto(resultDataUrl)
+      toast.success('Background berhasil diganti! 🎉', { id: loadingToast })
+      
+      // Cleanup
+      URL.revokeObjectURL(removedBgUrl)
     } catch (error: any) {
       console.error('Error changing background:', error)
-      
-      // Show detailed error message
-      let errorMessage = 'Terjadi kesalahan tidak diketahui'
-      
-      if (error.message) {
-        errorMessage = error.message
-      }
-      
-      toast.error(`Gagal mengganti background: ${errorMessage}`, { 
-        id: loadingToast,
-        duration: 5000 
-      })
+      toast.error(`Gagal: ${error.message || 'Unknown error'}`, { id: loadingToast })
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  const handleReset = () => {
+    setOriginalPhoto(null)
+    setProcessedPhoto(null)
+    setCustomColor('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    toast.success('Reset berhasil')
   }
 
   const handleDownload = () => {
@@ -164,202 +144,158 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
     const link = document.createElement('a')
     link.href = processedPhoto
     link.download = `photo-edited-${Date.now()}.png`
-    document.body.appendChild(link)
     link.click()
-    document.body.removeChild(link)
     toast.success('Foto berhasil didownload')
   }
 
   const handleUseInCV = () => {
     if (!processedPhoto) return
-    
-    if (onPhotoChange) {
-      onPhotoChange(processedPhoto)
-      toast.success('Foto berhasil ditambahkan ke CV')
-    }
-  }
-
-  const handleReset = () => {
-    setOriginalPhoto('')
-    setProcessedPhoto('')
-    setCustomBackground('')
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
+    onPhotoChange?.(processedPhoto)
+    toast.success('Foto telah digunakan di CV')
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Edit Foto dengan AI</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Ganti background foto Anda dengan AI menggunakan OpenAI
-            </p>
-          </div>
-          <Sparkles className="w-8 h-8 text-primary-600" />
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+      
+      {/* Header */}
+      <div className="text-center space-y-2">
+        <h2 className="text-3xl font-bold">Edit Foto CV</h2>
+        <p className="text-muted-foreground">
+          Upload foto, lalu pilih warna background yang diinginkan
+        </p>
+        <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+          ⚠️ Proses pertama kali butuh ~30 detik download model AI (gratis, offline)
         </div>
+      </div>
 
-        {/* Upload Section */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            📷 Upload Foto
-          </label>
-          <div className="flex items-center gap-3">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png"
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-            >
-              <Upload className="w-4 h-4" />
-              Pilih Foto
-            </button>
-            {originalPhoto && (
-              <button
-                onClick={handleReset}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Reset
-              </button>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Format: JPEG, PNG | Maksimal: 10MB
+      {/* Upload Section */}
+      <div className="border-2 border-dashed rounded-lg p-8 text-center">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          className="hidden"
+          id="photo-upload"
+        />
+        <label htmlFor="photo-upload" className="cursor-pointer">
+          <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <p className="text-lg font-medium mb-2">Upload Foto</p>
+          <p className="text-sm text-muted-foreground">
+            JPG, PNG, JPEG (Max 10MB)
           </p>
-        </div>
+        </label>
+      </div>
 
-        {/* Background Selection */}
-        {originalPhoto && (
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              🎨 Pilih Background
-            </label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              {BACKGROUND_PRESETS.map((preset) => (
+      {/* Background Color Selection */}
+      {originalPhoto && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-3">Pilih Warna Background:</label>
+            <div className="grid grid-cols-4 gap-3">
+              {BACKGROUND_COLORS.map((bg) => (
                 <button
-                  key={preset.id}
+                  key={bg.id}
                   onClick={() => {
-                    setSelectedBackground(preset.value)
-                    setCustomBackground('')
+                    setSelectedColor(bg.value)
+                    setCustomColor('')
                   }}
-                  className={`px-4 py-3 rounded-lg border-2 transition-all text-sm font-medium ${
-                    selectedBackground === preset.value && !customBackground
-                      ? 'border-primary-600 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                  className={`p-4 rounded-lg border-2 transition-all ${
+                    selectedColor === bg.value && !customColor
+                      ? 'border-primary ring-2 ring-primary ring-offset-2'
+                      : 'border-gray-300 hover:border-primary'
                   }`}
                 >
-                  {preset.label}
+                  <div
+                    className="w-full h-12 rounded mb-2"
+                    style={{ backgroundColor: bg.value }}
+                  />
+                  <p className="text-sm font-medium">{bg.label}</p>
                 </button>
               ))}
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Atau masukkan deskripsi custom:
-              </label>
+          <div>
+            <label className="block text-sm font-medium mb-2">Atau Masukkan Warna Custom (hex code):</label>
+            <div className="flex gap-2">
               <input
                 type="text"
-                value={customBackground}
-                onChange={(e) => setCustomBackground(e.target.value)}
-                placeholder="Contoh: sunset beach with palm trees"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                value={customColor}
+                onChange={(e) => setCustomColor(e.target.value)}
+                placeholder="Contoh: #FF5733 atau #ABCDEF"
+                className="flex-1 px-4 py-2 border rounded-lg"
               />
+              {customColor && (
+                <div
+                  className="w-12 h-12 rounded border"
+                  style={{ backgroundColor: customColor }}
+                />
+              )}
             </div>
           </div>
-        )}
 
-        {/* Process Button */}
-        {originalPhoto && (
           <button
             onClick={handleChangeBackground}
             disabled={isProcessing}
-            className="w-full bg-gradient-to-r from-primary-600 to-purple-600 text-white py-3 px-6 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-primary text-white py-3 rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            <Sparkles className="w-5 h-5" />
-            {isProcessing ? 'Memproses...' : 'Ganti Background dengan AI'}
+            <Palette className="w-5 h-5" />
+            {isProcessing ? 'Memproses...' : 'Ganti Background'}
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Preview Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Original Photo */}
-        {originalPhoto && (
-          <div className="bg-white rounded-lg shadow-sm border p-4">
-            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <ImageIcon className="w-5 h-5" />
-              Foto Asli
-            </h3>
-            <div className="relative aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden">
-              <img
-                src={originalPhoto}
-                alt="Original"
-                className="w-full h-full object-cover"
-              />
-            </div>
+      {originalPhoto && (
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <h3 className="font-medium">Foto Asli</h3>
+            <img
+              src={originalPhoto}
+              alt="Original"
+              className="w-full rounded-lg border"
+            />
           </div>
-        )}
 
-        {/* Processed Photo */}
-        {processedPhoto && (
-          <div className="bg-white rounded-lg shadow-sm border p-4">
-            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary-600" />
-              Hasil (Background Baru)
-            </h3>
-            <div className="relative aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden mb-4">
+          {processedPhoto && (
+            <div className="space-y-2">
+              <h3 className="font-medium">Hasil (Background Baru)</h3>
               <img
                 src={processedPhoto}
                 alt="Processed"
-                className="w-full h-full object-cover"
+                className="w-full rounded-lg border"
               />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDownload}
+                  className="flex-1 bg-secondary text-secondary-foreground py-2 rounded-lg font-medium hover:bg-secondary/80 flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+                <button
+                  onClick={handleUseInCV}
+                  className="flex-1 bg-primary text-white py-2 rounded-lg font-medium hover:bg-primary/90 flex items-center justify-center gap-2"
+                >
+                  Gunakan di CV
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleDownload}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Download
-              </button>
-              <button
-                onClick={handleUseInCV}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                Gunakan di CV
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Empty State */}
-      {!originalPhoto && (
-        <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
-          <ImageIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Belum ada foto
-          </h3>
-          <p className="text-gray-600 mb-4">
-            Upload foto Anda untuk mulai mengganti background dengan AI
-          </p>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            <Upload className="w-5 h-5" />
-            Upload Foto Sekarang
-          </button>
+          )}
         </div>
+      )}
+
+      {/* Reset Button */}
+      {originalPhoto && (
+        <button
+          onClick={handleReset}
+          className="w-full border-2 py-2 rounded-lg font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
+        >
+          <RotateCcw className="w-4 h-4" />
+          Reset Semua
+        </button>
       )}
     </div>
   )
