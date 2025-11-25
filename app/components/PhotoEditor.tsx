@@ -80,16 +80,33 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
       })
 
       const result = await response.json()
+      
+      console.log('API Response:', { status: response.status, result })
+
+      if (!response.ok) {
+        throw new Error(result.error || result.details || `HTTP ${response.status}`)
+      }
 
       if (result.success && result.image) {
         setProcessedPhoto(result.image)
         toast.success('Background berhasil diganti! 🎉', { id: loadingToast })
       } else {
-        throw new Error(result.error || 'Failed to change background')
+        throw new Error(result.error || 'Tidak ada hasil gambar')
       }
     } catch (error: any) {
       console.error('Error changing background:', error)
-      toast.error(`Gagal mengganti background: ${error.message}`, { id: loadingToast })
+      
+      // Show detailed error message
+      let errorMessage = 'Terjadi kesalahan tidak diketahui'
+      
+      if (error.message) {
+        errorMessage = error.message
+      }
+      
+      toast.error(`Gagal mengganti background: ${errorMessage}`, { 
+        id: loadingToast,
+        duration: 5000 
+      })
     } finally {
       setIsProcessing(false)
     }
