@@ -137,7 +137,8 @@ Format respons:
       // NEW: Ask OpenAI to also extract structured CV data
       if (hasRelevantInfo) {
         try {
-          const extractionPrompt = await openai.chat.completions.create({
+          // Use direct fetch for extraction too (consistent with chat response)
+          const extractionPayload = JSON.stringify({
             model: 'gpt-3.5-turbo',
             messages: [
               {
@@ -152,8 +153,19 @@ Format respons:
             max_tokens: 500,
             temperature: 0.1,
           })
+
+          const extractionRes = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+            },
+            body: extractionPayload
+          })
+
+          const extractionJson = await extractionRes.json()
+          const jsonResponse = extractionJson?.choices?.[0]?.message?.content
           
-          const jsonResponse = extractionPrompt.choices[0].message.content
           if (jsonResponse) {
             try {
               const extracted = JSON.parse(jsonResponse.replace(/```json|```/g, '').trim())
