@@ -90,16 +90,41 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
     const loadingToast = toast.loading('Menghapus background dan menambahkan warna baru...')
 
     try {
-      // Step 1: Convert data URL to Blob for removeBackground
-      const dataUrlString = String(originalPhoto) // Ensure it's a string
+      // Step 1: Create image element from data URL
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
       
-      // Parse data URL
-      const base64Response = await fetch(dataUrlString)
-      const imageBlob = await base64Response.blob()
+      // Load image from data URL
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => {
+          console.log('Original image loaded:', img.width, 'x', img.height)
+          resolve()
+        }
+        img.onerror = () => reject(new Error('Failed to load image'))
+        img.src = String(originalPhoto)
+      })
 
-      console.log('Image blob created:', imageBlob.size, 'bytes')
+      // Step 2: Convert image to Blob
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas context not available')
+      
+      ctx.drawImage(img, 0, 0)
+      
+      const imageBlob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            console.log('Image blob created:', blob.size, 'bytes')
+            resolve(blob)
+          } else {
+            reject(new Error('Failed to create blob'))
+          }
+        }, 'image/png')
+      })
 
-      // Step 2: Remove background using @imgly/background-removal
+      // Step 3: Remove background using @imgly/background-removal
       const removedBgBlob = await removeBackground(imageBlob, {
         progress: (key: string, current: number, total: number) => {
           const percentage = Math.round((current / total) * 100)
@@ -109,35 +134,36 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
 
       console.log('Background removed, blob size:', removedBgBlob.size, 'bytes')
 
-      // Step 3: Convert blob to image
+      // Step 4: Convert blob to image
       const removedBgUrl = URL.createObjectURL(removedBgBlob)
       const removedBgImg = new Image()
       
       await new Promise<void>((resolve, reject) => {
-        removedBgImg.onload = () => resolve()
-        removedBgImg.onerror = (e) => reject(new Error('Failed to load removed background image'))
+        removedBgImg.onload = () => {
+          console.log('Removed bg image loaded:', removedBgImg.width, 'x', removedBgImg.height)
+          resolve()
+        }
+        removedBgImg.onerror = () => reject(new Error('Failed to load removed background image'))
         removedBgImg.src = removedBgUrl
       })
 
-      console.log('Image loaded:', removedBgImg.width, 'x', removedBgImg.height)
-
-      // Step 4: Composite with solid color background
-      const canvas = canvasRef.current || document.createElement('canvas')
-      canvas.width = removedBgImg.width
-      canvas.height = removedBgImg.height
+      // Step 5: Composite with solid color background
+      const finalCanvas = canvasRef.current || document.createElement('canvas')
+      finalCanvas.width = removedBgImg.width
+      finalCanvas.height = removedBgImg.height
       
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas context not available')
+      const finalCtx = finalCanvas.getContext('2d')
+      if (!finalCtx) throw new Error('Canvas context not available')
 
       // Draw solid color background
-      ctx.fillStyle = String(backgroundColor) // Ensure backgroundColor is string
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      finalCtx.fillStyle = String(backgroundColor) // Ensure backgroundColor is string
+      finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
 
       // Draw person with transparent background on top
-      ctx.drawImage(removedBgImg, 0, 0)
+      finalCtx.drawImage(removedBgImg, 0, 0)
 
-      // Step 5: Convert to data URL (ensure it's a string)
-      const resultDataUrl = canvas.toDataURL('image/png', 0.95)
+      // Step 6: Convert to data URL (ensure it's a string)
+      const resultDataUrl = finalCanvas.toDataURL('image/png', 0.95)
       
       // Validate result is a string
       if (typeof resultDataUrl !== 'string') {
