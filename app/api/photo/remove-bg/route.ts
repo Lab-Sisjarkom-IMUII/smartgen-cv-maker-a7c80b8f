@@ -3,7 +3,7 @@ import OpenAI from 'openai'
 
 /**
  * Remove background using OpenAI DALL-E 2 Images Edit API
- * Uses creative prompting to simulate background removal
+ * Creates white mask and uses creative prompting
  */
 export async function POST(request: NextRequest) {
   try {
@@ -55,28 +55,24 @@ export async function POST(request: NextRequest) {
     const base64Data = base64Match[2]
     const imageBuffer = Buffer.from(base64Data, 'base64')
 
-    // Convert to PNG with mask (DALL-E requires PNG)
+    // Convert to PNG File
     const imageFile = new File([imageBuffer], 'image.png', { type: 'image/png' })
     
-    // Create white mask (DALL-E will edit the masked area)
-    // We create a full white mask to indicate "remove background everywhere"
-    const maskCanvas = await createWhiteMask(imageBuffer)
-    const maskBlob = await new Promise<Blob>((resolve, reject) => {
-      maskCanvas.toBlob((blob) => {
-        if (blob) resolve(blob)
-        else reject(new Error('Failed to create mask'))
-      }, 'image/png')
-    })
-    const maskFile = new File([maskBlob], 'mask.png', { type: 'image/png' })
+    // Create simple white mask (1x1 pixel - DALL-E will process the whole image)
+    const whiteMaskBuffer = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+      'base64'
+    )
+    const maskFile = new File([whiteMaskBuffer], 'mask.png', { type: 'image/png' })
 
     console.log('Calling OpenAI images.edit API...')
 
-    // Call OpenAI Images Edit API with background removal prompt
+    // Call OpenAI Images Edit API
     const response = await openai.images.edit({
       model: "dall-e-2",
       image: imageFile,
       mask: maskFile,
-      prompt: "Professional studio portrait on pure white seamless background, clean edges, high quality, photorealistic",
+      prompt: "Professional studio portrait with clean white background, photorealistic, high quality, preserve person exactly as is, only change background to pure white",
       n: 1,
       size: "1024x1024",
       response_format: "b64_json"
@@ -99,7 +95,7 @@ export async function POST(request: NextRequest) {
       success: true,
       image: resultDataUrl,
       model: 'dall-e-2',
-      note: 'Background replaced with white studio background'
+      note: 'Background replaced with white studio background using OpenAI'
     })
   } catch (error: any) {
     console.error('Error in OpenAI API:', error)
@@ -112,25 +108,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
-
-/**
- * Create white mask for DALL-E edit
- */
-async function createWhiteMask(imageBuffer: Buffer): Promise<HTMLCanvasElement> {
-  // This would normally run in browser, but for server we need node-canvas or similar
-  // For now, return a simple implementation
-  // In production, you'd use sharp or jimp for server-side image manipulation
-  
-  const { createCanvas, loadImage } = await import('canvas')
-  const img = await loadImage(imageBuffer)
-  
-  const canvas = createCanvas(img.width, img.height)
-  const ctx = canvas.getContext('2d')
-  
-  // Fill with white (DALL-E will edit this area)
-  ctx.fillStyle = '#FFFFFF'
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-  
-  return canvas as any
 }
