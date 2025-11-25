@@ -16,7 +16,6 @@ import {
   Edit3
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import AIPhotoFormatterFree from './AIPhotoFormatterFree'
 
 interface CVData {
   personalInfo: {
@@ -76,7 +75,6 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
 
   const [activeSection, setActiveSection] = useState('personal')
   const [isEditing, setIsEditing] = useState(false)
-  const [showAIModal, setShowAIModal] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [lastSnapshot, setLastSnapshot] = useState<any>(null)
   const [undoTimer, setUndoTimer] = useState<any>(null)
@@ -327,7 +325,6 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
                         return next
                       })
                     }}
-                    openAIModal={() => setShowAIModal(true)}
                   />
               )}
 
@@ -371,31 +368,6 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
         </div>
       </div>
 
-        {/* AI Photo Modal */}
-        {showAIModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center">
-            <div className="bg-white rounded-lg w-full max-w-4xl p-6 relative">
-              <button
-                onClick={() => setShowAIModal(false)}
-                className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
-              >
-                ✕
-              </button>
-              {/* Lazy-load AI component with callback */}
-              <AIPhotoFormatterFree
-                onSave={(dataUrl: string) => {
-                  // set into personalInfo.photo and close modal
-                  setData(prev => {
-                    const next = { ...prev, personalInfo: { ...prev.personalInfo, photo: dataUrl } }
-                    onDataUpdate && onDataUpdate(next)
-                    return next
-                  })
-                  setShowAIModal(false)
-                }}
-              />
-            </div>
-          </div>
-        )}
         {/* Undo banner */}
         {showUndoBanner && lastSnapshot && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
@@ -493,7 +465,7 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
 }
 
 // Component sections
-function PersonalInfoSection({ data, onChange, openAIModal }: any) {
+function PersonalInfoSection({ data, onChange }: any) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string>(data?.photo || '')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -623,11 +595,8 @@ function PersonalInfoSection({ data, onChange, openAIModal }: any) {
       } else if (msg.includes('IMAGE_LOAD_ERROR')) {
         toast.error('Gagal memuat foto untuk diproses. Coba upload ulang atau pilih file lain.')
       } else {
-        toast.error('Gagal memproses foto. Coba lagi atau pilih foto dari fitur AI.')
+        toast.error('Gagal memproses foto. Coba lagi atau upload foto baru.')
       }
-
-      // fallback: offer AI modal so user can try alternative formatter
-      openAIModal && openAIModal()
     } finally {
       setIsProcessing(false)
     }
@@ -814,13 +783,6 @@ function PersonalInfoSection({ data, onChange, openAIModal }: any) {
                   className="px-4 py-2 border rounded-lg"
                 >
                   Crop & Simpan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openAIModal && openAIModal()}
-                  className="px-4 py-2 border rounded-lg"
-                >
-                  Pilih dari AI
                 </button>
             </div>
             <p className="text-sm text-gray-500">Anda bisa langsung upload foto atau gunakan fitur AI untuk membuat foto formal (background removal).</p>
