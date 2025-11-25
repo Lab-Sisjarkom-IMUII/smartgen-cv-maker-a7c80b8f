@@ -45,10 +45,23 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
 
     const reader = new FileReader()
     reader.onload = (event) => {
-      const dataUrl = event.target?.result as string
+      const result = event.target?.result
+      
+      // Ensure result is a string (data URL)
+      if (typeof result !== 'string') {
+        toast.error('Gagal membaca file')
+        console.error('FileReader result is not a string:', typeof result)
+        return
+      }
+      
+      const dataUrl = String(result) // Explicitly convert to string
       setOriginalPhoto(dataUrl)
       setProcessedPhoto(null)
       toast.success('Foto berhasil diupload')
+    }
+    reader.onerror = () => {
+      toast.error('Gagal membaca file')
+      console.error('FileReader error')
     }
     reader.readAsDataURL(file)
   }
@@ -56,6 +69,13 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
   const handleChangeBackground = async () => {
     if (!originalPhoto) {
       toast.error('Pilih foto terlebih dahulu')
+      return
+    }
+
+    // Ensure originalPhoto is a string
+    if (typeof originalPhoto !== 'string') {
+      toast.error('Format foto tidak valid')
+      console.error('originalPhoto is not a string:', typeof originalPhoto)
       return
     }
 
@@ -70,25 +90,38 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
     const loadingToast = toast.loading('Menghapus background dan menambahkan warna baru...')
 
     try {
-      // Step 1: Remove background using @imgly/background-removal
-      // Pass the data URL directly (library will handle image loading)
-      const blob = await removeBackground(originalPhoto, {
+      // Step 1: Convert data URL to Blob for removeBackground
+      const dataUrlString = String(originalPhoto) // Ensure it's a string
+      
+      // Parse data URL
+      const base64Response = await fetch(dataUrlString)
+      const imageBlob = await base64Response.blob()
+
+      console.log('Image blob created:', imageBlob.size, 'bytes')
+
+      // Step 2: Remove background using @imgly/background-removal
+      const removedBgBlob = await removeBackground(imageBlob, {
         progress: (key: string, current: number, total: number) => {
-          console.log(`Removing background: ${Math.round((current / total) * 100)}%`)
+          const percentage = Math.round((current / total) * 100)
+          console.log(`Removing background: ${percentage}%`)
         }
       })
 
-      // Convert blob to image
-      const removedBgUrl = URL.createObjectURL(blob)
+      console.log('Background removed, blob size:', removedBgBlob.size, 'bytes')
+
+      // Step 3: Convert blob to image
+      const removedBgUrl = URL.createObjectURL(removedBgBlob)
       const removedBgImg = new Image()
       
-      await new Promise((resolve, reject) => {
-        removedBgImg.onload = resolve
-        removedBgImg.onerror = reject
+      await new Promise<void>((resolve, reject) => {
+        removedBgImg.onload = () => resolve()
+        removedBgImg.onerror = (e) => reject(new Error('Failed to load removed background image'))
         removedBgImg.src = removedBgUrl
       })
 
-      // Step 2: Composite with solid color background
+      console.log('Image loaded:', removedBgImg.width, 'x', removedBgImg.height)
+
+      // Step 4: Composite with solid color background
       const canvas = canvasRef.current || document.createElement('canvas')
       canvas.width = removedBgImg.width
       canvas.height = removedBgImg.height
@@ -97,14 +130,21 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
       if (!ctx) throw new Error('Canvas context not available')
 
       // Draw solid color background
-      ctx.fillStyle = backgroundColor
+      ctx.fillStyle = String(backgroundColor) // Ensure backgroundColor is string
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       // Draw person with transparent background on top
       ctx.drawImage(removedBgImg, 0, 0)
 
-      // Convert to data URL
+      // Step 5: Convert to data URL (ensure it's a string)
       const resultDataUrl = canvas.toDataURL('image/png', 0.95)
+      
+      // Validate result is a string
+      if (typeof resultDataUrl !== 'string') {
+        throw new Error('Failed to generate result image')
+      }
+
+      console.log('Result data URL generated, length:', resultDataUrl.length)
       
       setProcessedPhoto(resultDataUrl)
       toast.success('Background berhasil diganti! 🎉', { id: loadingToast })
@@ -113,7 +153,8 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
       URL.revokeObjectURL(removedBgUrl)
     } catch (error: any) {
       console.error('Error changing background:', error)
-      toast.error(`Gagal: ${error.message || 'Unknown error'}`, { id: loadingToast })
+      const errorMessage = error?.message || String(error) || 'Unknown error'
+      toast.error(`Gagal: ${errorMessage}`, { id: loadingToast })
     } finally {
       setIsProcessing(false)
     }
@@ -131,9 +172,16 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
 
   const handleDownload = () => {
     if (!processedPhoto) return
+    
+    // Ensure processedPhoto is a string
+    if (typeof processedPhoto !== 'string') {
+      toast.error('Format gambar tidak valid')
+      console.error('processedPhoto is not a string:', typeof processedPhoto)
+      return
+    }
 
     const link = document.createElement('a')
-    link.href = processedPhoto
+    link.href = String(processedPhoto) // Explicitly ensure string type
     link.download = `photo-edited-${Date.now()}.png`
     link.click()
     toast.success('Foto berhasil didownload')
@@ -141,7 +189,15 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
 
   const handleUseInCV = () => {
     if (!processedPhoto) return
-    onPhotoChange?.(processedPhoto)
+    
+    // Ensure processedPhoto is a string before passing to callback
+    if (typeof processedPhoto !== 'string') {
+      toast.error('Format gambar tidak valid')
+      console.error('processedPhoto is not a string:', typeof processedPhoto)
+      return
+    }
+    
+    onPhotoChange?.(String(processedPhoto)) // Explicitly ensure string type
     toast.success('Foto telah digunakan di CV')
   }
 
