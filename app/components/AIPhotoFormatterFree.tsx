@@ -142,7 +142,7 @@ export default function AIPhotoFormatterFree({ onSave }: { onSave?: (dataUrl: st
     setProgress(0)
 
     try {
-      toast.loading('Mengirim foto ke server OpenAI...', { id: 'processing' })
+      toast.loading('Mengirim foto ke OpenAI DALL-E...', { id: 'processing' })
       setProgress(10)
 
       const resp = await fetch('/api/ai/photo/remove-bg', {
@@ -153,14 +153,14 @@ export default function AIPhotoFormatterFree({ onSave }: { onSave?: (dataUrl: st
 
       if (!resp.ok) {
         const t = await resp.text()
-        console.error('Server remove-bg failed:', t)
-        toast.error('Server AI gagal memproses foto')
+        console.error('OpenAI remove-bg failed:', t)
+        toast.error('OpenAI gagal memproses foto')
         return
       }
 
       const json = await resp.json()
       if (!json?.image) {
-        toast.error('Server AI tidak mengembalikan gambar')
+        toast.error('OpenAI tidak mengembalikan gambar')
         return
       }
 
@@ -174,7 +174,7 @@ export default function AIPhotoFormatterFree({ onSave }: { onSave?: (dataUrl: st
         const url = URL.createObjectURL(refined)
         setProcessedUrl(url)
         setProgress(100)
-        toast.success('Foto berhasil diubah menggunakan OpenAI! 🎉', { id: 'processing' })
+        toast.success('Foto berhasil diubah menggunakan OpenAI DALL-E! 🎉', { id: 'processing' })
       } else {
         toast.error('Gagal melakukan post-process gambar')
       }
@@ -629,7 +629,7 @@ export default function AIPhotoFormatterFree({ onSave }: { onSave?: (dataUrl: st
                       className="flex-1 bg-gradient-to-r from-indigo-500 to-blue-600 text-white py-4 px-6 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     >
                       <Sparkles className="w-5 h-5 mr-2" />
-                      Gunakan OpenAI (server)
+                      Gunakan DALL-E (OpenAI)
                     </button>
                     <button
                       onClick={resetForm}
