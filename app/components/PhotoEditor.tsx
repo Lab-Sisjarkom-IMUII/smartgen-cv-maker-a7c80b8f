@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Upload, Palette, Download, RotateCcw } from 'lucide-react'
+import { Upload, Palette, Download, RotateCcw, Sparkles } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { removeBackground } from '@imgly/background-removal'
+
+type RemovalMethod = 'client' | 'api'
 
 const BACKGROUND_COLORS = [
   { id: 'white', label: 'Putih', value: '#FFFFFF' },
@@ -26,6 +28,7 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
   const [selectedColor, setSelectedColor] = useState<string>('#FFFFFF')
   const [customColor, setCustomColor] = useState<string>('')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [removalMethod, setRemovalMethod] = useState<RemovalMethod>('api')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -87,50 +90,82 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
     }
 
     setIsProcessing(true)
-    const loadingToast = toast.loading('Menghapus background dan menambahkan warna baru...')
+    const loadingToast = toast.loading(
+      removalMethod === 'api'
+        ? 'Menghapus background dengan Remove.bg API (berbayar)...'
+        : 'Menghapus background dengan AI lokal (gratis)...'
+    )
 
     try {
-      // Step 1: Create image element from data URL
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      
-      // Load image from data URL
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => {
-          console.log('Original image loaded:', img.width, 'x', img.height)
-          resolve()
-        }
-        img.onerror = () => reject(new Error('Failed to load image'))
-        img.src = String(originalPhoto)
-      })
+      let removedBgBlob: Blob
 
-      // Step 2: Convert image to Blob
-      const canvas = document.createElement('canvas')
-      canvas.width = img.width
-      canvas.height = img.height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas context not available')
-      
-      ctx.drawImage(img, 0, 0)
-      
-      const imageBlob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (blob) {
-            console.log('Image blob created:', blob.size, 'bytes')
-            resolve(blob)
-          } else {
-            reject(new Error('Failed to create blob'))
+      // Choose removal method
+      if (removalMethod === 'api') {
+        // METHOD 1: Remove.bg API (production-quality, berbayar)
+        console.log('Using Remove.bg API method')
+        
+        const response = await fetch('/api/photo/remove-bg', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: originalPhoto }),
+        })
+
+        const result = await response.json()
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.details || result.error || 'API request failed')
+        }
+
+        console.log('Remove.bg credits charged:', result.credits_charged)
+
+        // Convert result data URL to Blob
+        const base64Response = await fetch(result.image)
+        removedBgBlob = await base64Response.blob()
+      } else {
+        // METHOD 2: Client-side @imgly/background-removal (gratis, lokal)
+        console.log('Using client-side background removal')
+        
+        // Step 1: Create image element from data URL
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => {
+            console.log('Original image loaded:', img.width, 'x', img.height)
+            resolve()
           }
-        }, 'image/png')
-      })
+          img.onerror = () => reject(new Error('Failed to load image'))
+          img.src = String(originalPhoto)
+        })
 
-      // Step 3: Remove background using @imgly/background-removal
-      const removedBgBlob = await removeBackground(imageBlob, {
-        progress: (key: string, current: number, total: number) => {
-          const percentage = Math.round((current / total) * 100)
-          console.log(`Removing background: ${percentage}%`)
-        }
-      })
+        // Step 2: Convert image to Blob
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width
+        canvas.height = img.height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) throw new Error('Canvas context not available')
+        
+        ctx.drawImage(img, 0, 0)
+        
+        const imageBlob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) {
+              console.log('Image blob created:', blob.size, 'bytes')
+              resolve(blob)
+            } else {
+              reject(new Error('Failed to create blob'))
+            }
+          }, 'image/png')
+        })
+
+        // Step 3: Remove background
+        removedBgBlob = await removeBackground(imageBlob, {
+          progress: (key: string, current: number, total: number) => {
+            const percentage = Math.round((current / total) * 100)
+            console.log(`Removing background: ${percentage}%`)
+          }
+        })
+      }
 
       console.log('Background removed, blob size:', removedBgBlob.size, 'bytes')
 
@@ -148,7 +183,7 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
       })
 
       // Step 5: Composite with solid color background
-      const finalCanvas = canvasRef.current || document.createElement('canvas')
+      const finalCanvas = canvasRef.current!
       finalCanvas.width = removedBgImg.width
       finalCanvas.height = removedBgImg.height
       
@@ -229,17 +264,58 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
-      
+      <canvas ref={canvasRef} className="hidden" />
+
       {/* Header */}
       <div className="text-center space-y-2">
         <h2 className="text-3xl font-bold">Edit Foto CV</h2>
         <p className="text-muted-foreground">
           Upload foto, lalu pilih warna background yang diinginkan
         </p>
-        <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-          ⚠️ Proses pertama kali butuh ~30 detik download model AI (gratis, offline)
+      </div>
+
+      {/* Background Removal Method Selection */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <label className="block text-sm font-medium mb-3">Metode Penghapusan Background:</label>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setRemovalMethod('api')}
+            className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+              removalMethod === 'api'
+                ? 'border-blue-500 bg-blue-500 text-white'
+                : 'border-gray-300 bg-white hover:border-blue-300'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              <span className="font-medium">Remove.bg API</span>
+            </div>
+            <p className="text-xs mt-1 opacity-90">
+              Kualitas terbaik, berbayar ($0.02/foto)
+            </p>
+          </button>
+          <button
+            onClick={() => setRemovalMethod('client')}
+            className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+              removalMethod === 'client'
+                ? 'border-green-500 bg-green-500 text-white'
+                : 'border-gray-300 bg-white hover:border-green-300'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Download className="w-4 h-4" />
+              <span className="font-medium">AI Lokal</span>
+            </div>
+            <p className="text-xs mt-1 opacity-90">
+              Gratis, ~30s pertama kali, offline
+            </p>
+          </button>
         </div>
+        {removalMethod === 'api' && (
+          <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+            ⚠️ Memerlukan REMOVE_BG_API_KEY di environment variables
+          </div>
+        )}
       </div>
 
       {/* Upload Section */}
@@ -372,4 +448,5 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
       )}
     </div>
   )
+
 }
