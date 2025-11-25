@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
     // Convert base64 to Buffer
     const imageBuffer = Buffer.from(b64, 'base64')
     
-    // Create File object
-    const file = new File([imageBuffer], 'photo.png', { type: mime })
+    // Create File object - always use PNG mime type for OpenAI compatibility
+    const file = new File([imageBuffer], 'photo.png', { type: 'image/png' })
 
     // Create prompt
     const prompt = `Ganti background pada gambar ini dengan background: ${background}.

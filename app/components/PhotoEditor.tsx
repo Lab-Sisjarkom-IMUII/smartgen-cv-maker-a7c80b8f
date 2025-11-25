@@ -44,9 +44,23 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
     const reader = new FileReader()
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string
-      setOriginalPhoto(dataUrl)
-      setProcessedPhoto('')
-      toast.success('Foto berhasil diupload')
+      
+      // Convert to PNG (OpenAI only accepts PNG for image edit)
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.width
+        canvas.height = img.height
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.drawImage(img, 0, 0)
+          const pngDataUrl = canvas.toDataURL('image/png')
+          setOriginalPhoto(pngDataUrl)
+          setProcessedPhoto('')
+          toast.success('Foto berhasil diupload dan dikonversi ke PNG')
+        }
+      }
+      img.src = dataUrl
     }
     reader.readAsDataURL(file)
   }
@@ -82,6 +96,11 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
       const result = await response.json()
       
       console.log('API Response:', { status: response.status, result })
+      
+      // Debug: show alert with error details
+      if (!response.ok) {
+        alert(`Error Details:\nStatus: ${response.status}\nError: ${result.error}\nDetails: ${result.details}`)
+      }
 
       if (!response.ok) {
         throw new Error(result.error || result.details || `HTTP ${response.status}`)
