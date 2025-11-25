@@ -92,8 +92,8 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
     setIsProcessing(true)
     const loadingToast = toast.loading(
       removalMethod === 'api'
-        ? 'Menghapus background dengan Remove.bg API (berbayar)...'
-        : 'Menghapus background dengan AI lokal (gratis)...'
+        ? 'Memproses dengan OpenAI DALL-E (10-20 detik)...'
+        : 'Menghapus background dengan AI lokal...'
     )
 
     try {
@@ -101,8 +101,8 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
 
       // Choose removal method
       if (removalMethod === 'api') {
-        // METHOD 1: Remove.bg API (production-quality, berbayar)
-        console.log('Using Remove.bg API method')
+        // METHOD 1: OpenAI DALL-E 2 Images Edit
+        console.log('Using OpenAI DALL-E method')
         
         const response = await fetch('/api/photo/remove-bg', {
           method: 'POST',
@@ -116,7 +116,8 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
           throw new Error(result.details || result.error || 'API request failed')
         }
 
-        console.log('Remove.bg credits charged:', result.credits_charged)
+        console.log('OpenAI model used:', result.model)
+        console.log('Note:', result.note)
 
         // Convert result data URL to Blob
         const base64Response = await fetch(result.image)
@@ -288,10 +289,10 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
           >
             <div className="flex items-center justify-center gap-2">
               <Sparkles className="w-4 h-4" />
-              <span className="font-medium">Remove.bg API</span>
+              <span className="font-medium">OpenAI DALL-E</span>
             </div>
             <p className="text-xs mt-1 opacity-90">
-              Kualitas terbaik, berbayar ($0.02/foto)
+              GPT-powered, kualitas tinggi, berbayar
             </p>
           </button>
           <button
@@ -313,7 +314,7 @@ export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
         </div>
         {removalMethod === 'api' && (
           <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
-            ⚠️ Memerlukan REMOVE_BG_API_KEY di environment variables
+            ⚠️ Menggunakan OpenAI DALL-E 2 Images Edit API ($0.02/image)
           </div>
         )}
       </div>

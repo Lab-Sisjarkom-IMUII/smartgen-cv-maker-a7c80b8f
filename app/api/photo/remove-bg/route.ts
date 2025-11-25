@@ -1,23 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
+import OpenAI from 'openai'
 
 /**
- * Remove background using Remove.bg API
- * Requires REMOVE_BG_API_KEY environment variable
+ * Remove background using OpenAI DALL-E 2 Images Edit API
+ * Uses creative prompting to simulate background removal
  */
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = process.env.REMOVE_BG_API_KEY
+    const apiKey = process.env.OPENAI_API_KEY
 
     if (!apiKey) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'Remove.bg API key not configured',
-          details: 'Please set REMOVE_BG_API_KEY in environment variables'
+          error: 'OpenAI API key not configured',
+          details: 'Please set OPENAI_API_KEY in environment variables'
         },
         { status: 500 }
       )
     }
+
+    const openai = new OpenAI({ apiKey })
 
     // Parse request body
     const body = await request.json()
@@ -33,6 +36,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    console.log('Processing with OpenAI DALL-E...')
 
     // Extract base64 data from data URL
     const base64Match = image.match(/^data:image\/(png|jpg|jpeg);base64,(.+)$/)
@@ -50,65 +55,82 @@ export async function POST(request: NextRequest) {
     const base64Data = base64Match[2]
     const imageBuffer = Buffer.from(base64Data, 'base64')
 
-    console.log('Sending to Remove.bg API, size:', imageBuffer.length, 'bytes')
+    // Convert to PNG with mask (DALL-E requires PNG)
+    const imageFile = new File([imageBuffer], 'image.png', { type: 'image/png' })
+    
+    // Create white mask (DALL-E will edit the masked area)
+    // We create a full white mask to indicate "remove background everywhere"
+    const maskCanvas = await createWhiteMask(imageBuffer)
+    const maskBlob = await new Promise<Blob>((resolve, reject) => {
+      maskCanvas.toBlob((blob) => {
+        if (blob) resolve(blob)
+        else reject(new Error('Failed to create mask'))
+      }, 'image/png')
+    })
+    const maskFile = new File([maskBlob], 'mask.png', { type: 'image/png' })
 
-    // Call Remove.bg API
-    const formData = new FormData()
-    const blob = new Blob([imageBuffer], { type: 'image/png' })
-    formData.append('image_file', blob, 'image.png')
-    formData.append('size', 'auto')
+    console.log('Calling OpenAI images.edit API...')
 
-    const response = await fetch('https://api.remove.bg/v1.0/removebg', {
-      method: 'POST',
-      headers: {
-        'X-Api-Key': apiKey,
-      },
-      body: formData,
+    // Call OpenAI Images Edit API with background removal prompt
+    const response = await openai.images.edit({
+      model: "dall-e-2",
+      image: imageFile,
+      mask: maskFile,
+      prompt: "Professional studio portrait on pure white seamless background, clean edges, high quality, photorealistic",
+      n: 1,
+      size: "1024x1024",
+      response_format: "b64_json"
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Remove.bg API error:', response.status, errorText)
-      
-      let errorMessage = 'Remove.bg API error'
-      try {
-        const errorJson = JSON.parse(errorText)
-        errorMessage = errorJson.errors?.[0]?.title || errorMessage
-      } catch (e) {
-        // Use default error message
-      }
-
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: errorMessage,
-          details: `Status ${response.status}: ${errorText.substring(0, 200)}`
-        },
-        { status: response.status }
-      )
+    if (!response.data || response.data.length === 0) {
+      throw new Error('No image returned from OpenAI')
     }
 
-    // Get result as buffer
-    const resultBuffer = await response.arrayBuffer()
-    const resultBase64 = Buffer.from(resultBuffer).toString('base64')
+    const resultBase64 = response.data[0].b64_json
+    if (!resultBase64) {
+      throw new Error('No base64 data in response')
+    }
+
     const resultDataUrl = `data:image/png;base64,${resultBase64}`
 
-    console.log('Background removed successfully, result size:', resultBuffer.byteLength, 'bytes')
+    console.log('Background processed successfully with DALL-E')
 
     return NextResponse.json({
       success: true,
       image: resultDataUrl,
-      credits_charged: response.headers.get('X-Credits-Charged') || 'unknown',
+      model: 'dall-e-2',
+      note: 'Background replaced with white studio background'
     })
   } catch (error: any) {
-    console.error('Error in remove-bg API:', error)
+    console.error('Error in OpenAI API:', error)
     return NextResponse.json(
       { 
         success: false, 
-        error: 'Server error',
+        error: 'OpenAI API error',
         details: error.message || String(error)
       },
       { status: 500 }
     )
   }
+}
+
+/**
+ * Create white mask for DALL-E edit
+ */
+async function createWhiteMask(imageBuffer: Buffer): Promise<HTMLCanvasElement> {
+  // This would normally run in browser, but for server we need node-canvas or similar
+  // For now, return a simple implementation
+  // In production, you'd use sharp or jimp for server-side image manipulation
+  
+  const { createCanvas, loadImage } = await import('canvas')
+  const img = await loadImage(imageBuffer)
+  
+  const canvas = createCanvas(img.width, img.height)
+  const ctx = canvas.getContext('2d')
+  
+  // Fill with white (DALL-E will edit this area)
+  ctx.fillStyle = '#FFFFFF'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  
+  return canvas as any
 }
