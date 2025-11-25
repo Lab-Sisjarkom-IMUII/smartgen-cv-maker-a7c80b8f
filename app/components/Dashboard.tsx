@@ -394,7 +394,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           )}
           
           {activeTab === 'preview' && (
-            <CVPreview cvData={cvData} template={selectedTemplate} />
+            <CVPreview 
+              cvData={cvData} 
+              template={selectedTemplate}
+              onClear={() => {
+                setCVData(null)
+                localStorage.removeItem('currentCV')
+                setActiveTab('builder')
+              }}
+            />
           )}
         </motion.div>
       </main>

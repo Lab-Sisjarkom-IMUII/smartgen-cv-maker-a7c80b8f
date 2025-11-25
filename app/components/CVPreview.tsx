@@ -9,7 +9,8 @@ import {
   Share2, 
   Printer,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
@@ -18,9 +19,10 @@ import toast from 'react-hot-toast'
 interface CVPreviewProps {
   cvData: any
   template: string
+  onClear?: () => void
 }
 
-export default function CVPreview({ cvData, template }: CVPreviewProps) {
+export default function CVPreview({ cvData, template, onClear }: CVPreviewProps) {
   // Normalize data shapes: some flows use `experience` while others use `experiences`.
   const normalizedCvData = {
     ...cvData,
@@ -289,6 +291,21 @@ export default function CVPreview({ cvData, template }: CVPreviewProps) {
                 <Printer className="w-4 h-4" />
                 <span>Print</span>
               </button>
+              
+              {onClear && (
+                <button
+                  onClick={() => {
+                    if (window.confirm('Hapus preview CV? Data akan dihapus dari preview.')) {
+                      onClear()
+                      toast.success('Preview CV berhasil dihapus')
+                    }
+                  }}
+                  className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Hapus</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
