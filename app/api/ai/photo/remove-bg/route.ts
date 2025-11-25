@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// This route uses remove.bg service to remove image background.
+// Set environment variable REMOVE_BG_API_KEY with your remove.bg API key.
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'OPENAI_API_KEY not configured on server' }, { status: 403 })
+    if (!process.env.REMOVE_BG_API_KEY) {
+      return NextResponse.json({ error: 'REMOVE_BG_API_KEY not configured on server' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -13,7 +15,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid image payload' }, { status: 400 })
     }
 
-    // Extract base64 portion
     const matches = image.match(/^data:(.+);base64,(.+)$/)
     if (!matches) {
       return NextResponse.json({ error: 'Invalid data URL' }, { status: 400 })
@@ -21,39 +22,31 @@ export async function POST(request: NextRequest) {
 
     const mime = matches[1]
     const b64 = matches[2]
-    const buffer = Buffer.from(b64, 'base64')
 
-    // Build multipart form data
+    // Use remove.bg API
+    // Build form data: image_file_b64 expects raw base64 (no data: prefix)
     const formData = new FormData()
-    // Convert buffer to Blob (Node 18+ provides global Blob)
-    const blob = new Blob([buffer], { type: mime })
-    formData.append('image', blob, 'upload.png')
-    formData.append('prompt', 'Remove the background from this photo and return a PNG with a transparent background, preserving the person and fine hair details. Return a single PNG image.')
-    formData.append('size', '1024x1024')
+    formData.append('image_file_b64', b64)
+    formData.append('size', 'auto')
 
-    const res = await fetch('https://api.openai.com/v1/images/edits', {
+    const res = await fetch('https://api.remove.bg/v1.0/remove', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+        'X-Api-Key': process.env.REMOVE_BG_API_KEY as string
       },
       body: formData as any
     })
 
     if (!res.ok) {
       const t = await res.text()
-      console.error('OpenAI images/edits error:', t)
-      return NextResponse.json({ error: 'OpenAI images API error' }, { status: 502 })
+      console.error('remove.bg error:', t)
+      return NextResponse.json({ error: 'remove.bg API error', detail: t }, { status: 502 })
     }
 
-    const json = await res.json()
-    // Response contains b64_json in data[0].b64_json
-    const b64json = json?.data?.[0]?.b64_json
-    if (!b64json) {
-      console.error('OpenAI images response missing b64_json', json)
-      return NextResponse.json({ error: 'Invalid OpenAI response' }, { status: 502 })
-    }
-
-    const dataUrl = `data:image/png;base64,${b64json}`
+    // remove.bg returns binary PNG image in response body
+    const arrayBuffer = await res.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    const dataUrl = `data:image/png;base64,${buffer.toString('base64')}`
 
     return NextResponse.json({ image: dataUrl })
   } catch (err) {
