@@ -22,12 +22,11 @@ import AIChat from './AIChat'
 import CVBuilder from './CVBuilder'
 import TemplateSelector from './TemplateSelector'
 import CVPreview from './CVPreview'
-import AIPhotoFormatter from './AIPhotoFormatter'
 import CVSelector from './CVSelector'
 import CVHistoryPanel from './CVHistoryPanel'
 import { useCVData } from '@/hooks/useCVData'
 
-type TabType = 'chat' | 'builder' | 'templates' | 'preview' | 'photo'
+type TabType = 'chat' | 'builder' | 'templates' | 'preview'
 
 interface DashboardProps {
   onLogout?: () => void
@@ -106,7 +105,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     { id: 'chat', label: 'AI Assistant', icon: MessageSquare },
     { id: 'builder', label: 'CV Builder', icon: FileText },
     { id: 'templates', label: 'Templates', icon: Eye },
-    { id: 'photo', label: 'AI Photo', icon: Sparkles },
     { id: 'preview', label: 'Preview', icon: Download },
   ]
 
@@ -387,10 +385,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           
           {activeTab === 'templates' && (
             <TemplateSelector onTemplateSelect={handleTemplateSelect} />
-          )}
-          
-          {activeTab === 'photo' && (
-            <AIPhotoFormatter />
           )}
           
           {activeTab === 'preview' && (
