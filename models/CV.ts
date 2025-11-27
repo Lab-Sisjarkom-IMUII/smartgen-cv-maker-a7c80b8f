@@ -10,7 +10,6 @@ export interface ICV extends Document {
     email: string
     phone?: string
     address?: string
-    photo?: string
     linkedin?: string
     website?: string
   }
@@ -93,7 +92,6 @@ const CVSchema = new Schema<ICV>(
       email: { type: String, required: true },
       phone: String,
       address: String,
-      photo: String,
       linkedin: String,
       website: String,
     },

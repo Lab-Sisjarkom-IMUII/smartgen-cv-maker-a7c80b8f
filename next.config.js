@@ -6,10 +6,6 @@ const nextConfig = {
     domains: ['lh3.googleusercontent.com'],
   },
   webpack: (config, { isServer, dev }) => {
-    // Exclude @imgly/background-removal from server-side bundle
-    if (isServer) {
-      config.externals = [...(config.externals || []), '@imgly/background-removal']
-    }
     
     // Add rule to handle .mjs files correctly (for ort.webgpu.bundle.min.mjs)
     config.module.rules.push({

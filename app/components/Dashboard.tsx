@@ -22,12 +22,11 @@ import AIChat from './AIChat'
 import CVBuilder from './CVBuilder'
 import TemplateSelector from './TemplateSelector'
 import CVPreview from './CVPreview'
-import PhotoEditor from './PhotoEditor'
 import CVSelector from './CVSelector'
 import CVHistoryPanel from './CVHistoryPanel'
 import { useCVData } from '@/hooks/useCVData'
 
-type TabType = 'chat' | 'builder' | 'templates' | 'photo' | 'preview'
+type TabType = 'chat' | 'builder' | 'templates' | 'preview'
 
 interface DashboardProps {
   onLogout?: () => void
@@ -106,7 +105,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     { id: 'chat', label: 'AI Assistant', icon: MessageSquare },
     { id: 'builder', label: 'CV Builder', icon: FileText },
     { id: 'templates', label: 'Templates', icon: Eye },
-    { id: 'photo', label: 'Edit Foto', icon: Sparkles },
     { id: 'preview', label: 'Preview', icon: Download },
   ]
 
@@ -387,27 +385,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           
           {activeTab === 'templates' && (
             <TemplateSelector onTemplateSelect={handleTemplateSelect} />
-          )}
-          
-          {activeTab === 'photo' && (
-            <PhotoEditor 
-              onPhotoChange={(photoUrl) => {
-                // Update CV data with new photo
-                if (cvData) {
-                  const updatedData = {
-                    ...cvData,
-                    personalInfo: {
-                      ...cvData.personalInfo,
-                      photo: photoUrl
-                    }
-                  }
-                  setCVData(updatedData)
-                  localStorage.setItem('currentCV', JSON.stringify(updatedData))
-                }
-                // Switch to builder tab to see the photo
-                setActiveTab('builder')
-              }}
-            />
           )}
           
           {activeTab === 'preview' && (
