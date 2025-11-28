@@ -4,7 +4,8 @@ import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import { prisma } from './prisma'
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Lazy adapter initialization - only create when actually used
+  adapter: process.env.NODE_ENV === 'production' ? PrismaAdapter(prisma) : undefined,
   secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-development',
   providers: [
     GoogleProvider({
