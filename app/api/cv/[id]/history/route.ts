@@ -13,7 +13,6 @@ export async function GET(
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    
     const history = await prisma.cVHistory.findMany({
       where: {
         cvId: params.id,
