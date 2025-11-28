@@ -6,8 +6,45 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "mysql"
+}
+
+model CV {
+  id        String   @id @default(cuid())
+  userEmail String
+  name      String   @default("")
+  email     String   @default("")
+  phone     String   @default("")
+  address   String   @default("")
+  summary   String   @db.Text
+  photo     String?  @db.Text
+  
+  experiences Json?
+  education   Json?
+  skills      Json?
+  languages   Json?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  history   CVHistory[]
+  
+  @@index([userEmail])
+  @@map("cvs")
+}
+
+model CVHistory {
+  id          String   @id @default(cuid())
+  cvId        String
+  cv          CV       @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  userEmail   String
+  data        Json
+  description String   @default("CV updated")
+  createdAt   DateTime @default(now())
+  
+  @@index([cvId])
+  @@index([userEmail])
+  @@map("cv_history")
 }
 
 model Account {
@@ -27,6 +64,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@map("accounts")
 }
 
 model Session {
@@ -35,19 +73,20 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("sessions")
 }
 
 model User {
   id            String    @id @default(cuid())
   name          String?
-  email         String    @unique
+  email         String?   @unique
   emailVerified DateTime?
   image         String?
   accounts      Account[]
   sessions      Session[]
-  cvs           CV[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  
+  @@map("users")
 }
 
 model VerificationToken {
@@ -56,16 +95,6 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@map("verification_tokens")
 }
 
-model CV {
-  id          String   @id @default(cuid())
-  userId      String
-  title       String
-  template    String
-  content     Json
-  isPublic    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}

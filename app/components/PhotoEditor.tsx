@@ -1,0 +1,310 @@
+'use client'
+
+import { useState, useRef } from 'react'
+import { Upload, Palette, Download, RotateCcw } from 'lucide-react'
+import toast from 'react-hot-toast'
+
+const BACKGROUND_COLORS = [
+  { id: 'white', label: 'Putih', value: '#FFFFFF' },
+  { id: 'light-gray', label: 'Abu Terang', value: '#F5F5F5' },
+  { id: 'blue-light', label: 'Biru Muda', value: '#E3F2FD' },
+  { id: 'blue', label: 'Biru', value: '#2196F3' },
+  { id: 'blue-dark', label: 'Biru Tua', value: '#1565C0' },
+  { id: 'gray', label: 'Abu-abu', value: '#9E9E9E' },
+  { id: 'navy', label: 'Navy', value: '#0D47A1' },
+  { id: 'teal', label: 'Teal', value: '#00897B' },
+]
+
+interface PhotoEditorProps {
+  onPhotoChange?: (photoDataUrl: string) => void
+}
+
+export default function PhotoEditor({ onPhotoChange }: PhotoEditorProps) {
+  const [originalPhoto, setOriginalPhoto] = useState<string | null>(null)
+  const [processedPhoto, setProcessedPhoto] = useState<string | null>(null)
+  const [selectedColor, setSelectedColor] = useState<string>('#FFFFFF')
+  const [customColor, setCustomColor] = useState<string>('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('File harus berupa gambar')
+      return
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Ukuran file maksimal 10MB')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const result = event.target?.result
+      
+      // Ensure result is a string (data URL)
+      if (typeof result !== 'string') {
+        toast.error('Gagal membaca file')
+        console.error('FileReader result is not a string:', typeof result)
+        return
+      }
+      
+      const dataUrl = String(result) // Explicitly convert to string
+      setOriginalPhoto(dataUrl)
+      setProcessedPhoto(null)
+      toast.success('Foto berhasil diupload')
+    }
+    reader.onerror = () => {
+      toast.error('Gagal membaca file')
+      console.error('FileReader error')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleChangeBackground = async () => {
+    if (!originalPhoto) {
+      toast.error('Pilih foto terlebih dahulu')
+      return
+    }
+
+    const backgroundColor = customColor.trim() || selectedColor
+
+    if (!backgroundColor) {
+      toast.error('Pilih warna background')
+      return
+    }
+
+    setIsProcessing(true)
+    const loadingToast = toast.loading('Mengganti background...')
+
+    try {
+      // Create image element from original photo
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('Failed to load image'))
+        img.src = originalPhoto
+      })
+
+      // Create canvas and draw image with new background
+      const finalCanvas = canvasRef.current!
+      finalCanvas.width = img.width
+      finalCanvas.height = img.height
+      
+      const finalCtx = finalCanvas.getContext('2d')
+      if (!finalCtx) throw new Error('Canvas context not available')
+
+      // Draw solid color background
+      finalCtx.fillStyle = backgroundColor
+      finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height)
+
+      // Draw original image on top (this will just overlay the image on the background)
+      finalCtx.drawImage(img, 0, 0)
+
+      // Convert to data URL
+      const resultDataUrl = finalCanvas.toDataURL('image/png', 0.95)
+      
+      setProcessedPhoto(resultDataUrl)
+      toast.success('Background berhasil diganti! 🎉', { id: loadingToast })
+    } catch (error: any) {
+      console.error('Error changing background:', error)
+      const errorMessage = error?.message || String(error) || 'Unknown error'
+      toast.error(`Gagal: ${errorMessage}`, { id: loadingToast })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleReset = () => {
+    setOriginalPhoto(null)
+    setProcessedPhoto(null)
+    setCustomColor('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    toast.success('Reset berhasil')
+  }
+
+  const handleDownload = () => {
+    if (!processedPhoto) return
+    
+    // Ensure processedPhoto is a string
+    if (typeof processedPhoto !== 'string') {
+      toast.error('Format gambar tidak valid')
+      console.error('processedPhoto is not a string:', typeof processedPhoto)
+      return
+    }
+
+    const link = document.createElement('a')
+    link.href = String(processedPhoto) // Explicitly ensure string type
+    link.download = `photo-edited-${Date.now()}.png`
+    link.click()
+    toast.success('Foto berhasil didownload')
+  }
+
+  const handleUseInCV = () => {
+    if (!processedPhoto) return
+    
+    // Ensure processedPhoto is a string before passing to callback
+    if (typeof processedPhoto !== 'string') {
+      toast.error('Format gambar tidak valid')
+      console.error('processedPhoto is not a string:', typeof processedPhoto)
+      return
+    }
+    
+    onPhotoChange?.(String(processedPhoto)) // Explicitly ensure string type
+    toast.success('Foto telah digunakan di CV')
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
+      <canvas ref={canvasRef} className="hidden" />
+
+      {/* Header */}
+      <div className="text-center space-y-2">
+        <h2 className="text-3xl font-bold">Edit Foto CV</h2>
+        <p className="text-muted-foreground">
+          Upload foto dan tambahkan background berwarna
+        </p>
+      </div>
+
+
+
+      {/* Upload Section */}
+      <div className="border-2 border-dashed rounded-lg p-8 text-center">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          className="hidden"
+          id="photo-upload"
+        />
+        <label htmlFor="photo-upload" className="cursor-pointer">
+          <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <p className="text-lg font-medium mb-2">Upload Foto</p>
+          <p className="text-sm text-muted-foreground">
+            JPG, PNG, JPEG (Max 10MB)
+          </p>
+        </label>
+      </div>
+
+      {/* Background Color Selection */}
+      {originalPhoto && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-3">Pilih Warna Background:</label>
+            <div className="grid grid-cols-4 gap-3">
+              {BACKGROUND_COLORS.map((bg) => (
+                <button
+                  key={bg.id}
+                  onClick={() => {
+                    setSelectedColor(bg.value)
+                    setCustomColor('')
+                  }}
+                  className={`p-4 rounded-lg border-2 transition-all ${
+                    selectedColor === bg.value && !customColor
+                      ? 'border-primary ring-2 ring-primary ring-offset-2'
+                      : 'border-gray-300 hover:border-primary'
+                  }`}
+                >
+                  <div
+                    className="w-full h-12 rounded mb-2"
+                    style={{ backgroundColor: bg.value }}
+                  />
+                  <p className="text-sm font-medium">{bg.label}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Atau Masukkan Warna Custom (hex code):</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customColor}
+                onChange={(e) => setCustomColor(e.target.value)}
+                placeholder="Contoh: #FF5733 atau #ABCDEF"
+                className="flex-1 px-4 py-2 border rounded-lg"
+              />
+              {customColor && (
+                <div
+                  className="w-12 h-12 rounded border"
+                  style={{ backgroundColor: customColor }}
+                />
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={handleChangeBackground}
+            disabled={isProcessing}
+            className="w-full bg-primary text-white py-3 rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <Palette className="w-5 h-5" />
+            {isProcessing ? 'Memproses...' : 'Ganti Background'}
+          </button>
+        </div>
+      )}
+
+      {/* Preview Section */}
+      {originalPhoto && (
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <h3 className="font-medium">Foto Asli</h3>
+            <img
+              src={originalPhoto}
+              alt="Original"
+              className="w-full rounded-lg border"
+            />
+          </div>
+
+          {processedPhoto && (
+            <div className="space-y-2">
+              <h3 className="font-medium">Hasil dengan Background Baru</h3>
+              <img
+                src={processedPhoto}
+                alt="Processed"
+                className="w-full rounded-lg border"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDownload}
+                  className="flex-1 bg-secondary text-secondary-foreground py-2 rounded-lg font-medium hover:bg-secondary/80 flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+                <button
+                  onClick={handleUseInCV}
+                  className="flex-1 bg-primary text-white py-2 rounded-lg font-medium hover:bg-primary/90 flex items-center justify-center gap-2"
+                >
+                  Gunakan di CV
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reset Button */}
+      {originalPhoto && (
+        <button
+          onClick={handleReset}
+          className="w-full border-2 py-2 rounded-lg font-medium hover:bg-gray-50 flex items-center justify-center gap-2"
+        >
+          <RotateCcw className="w-4 h-4" />
+          Reset Semua
+        </button>
+      )}
+    </div>
+  )
+
+}

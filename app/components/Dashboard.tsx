@@ -24,12 +24,13 @@ import TemplateSelector from './TemplateSelector'
 import CVPreview from './CVPreview'
 import CVSelector from './CVSelector'
 import CVHistoryPanel from './CVHistoryPanel'
+import AIPhotoEnhancer from './AIPhotoEnhancer'
 import PWAInstallPrompt from './PWAInstallPrompt'
 import PWAStatus from './PWAStatus'
 import ServiceWorkerRegistration from './ServiceWorkerRegistration'
 import { useCVData } from '@/hooks/useCVData'
 
-type TabType = 'chat' | 'builder' | 'templates' | 'preview'
+type TabType = 'chat' | 'builder' | 'templates' | 'photo' | 'preview'
 
 interface DashboardProps {
   onLogout?: () => void
@@ -49,7 +50,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [showHistory, setShowHistory] = useState(false)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
-  // Use MongoDB CV data hook
+  // Use MySQL database via Prisma for CV data
   const {
     cvData,
     setCVData,
@@ -108,6 +109,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     { id: 'chat', label: 'AI Assistant', icon: MessageSquare },
     { id: 'builder', label: 'CV Builder', icon: FileText },
     { id: 'templates', label: 'Templates', icon: Eye },
+    { id: 'photo', label: 'AI Photo', icon: Sparkles },
     { id: 'preview', label: 'Preview', icon: Download },
   ]
 
@@ -170,7 +172,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     // Save to localStorage immediately (instant backup)
     localStorage.setItem('currentCV', JSON.stringify(mergedData))
     
-    // Debounced auto-save to MongoDB (after 2 seconds of no changes)
+    // Auto-save to MySQL database via API (debounced)
     if (mergedData && session?.user?.email) {
       // Clear existing timeout
       if (autoSaveTimeoutRef.current) {
@@ -181,6 +183,29 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       autoSaveTimeoutRef.current = setTimeout(() => {
         autoSave(mergedData) // Use merged data, not the raw input
       }, 2000) // Save after 2 seconds of inactivity
+    }
+  }
+
+  const handlePhotoChange = (photoDataUrl: string) => {
+    if (cvData) {
+      const updatedCVData = {
+        ...cvData,
+        personalInfo: {
+          ...cvData.personalInfo,
+          photo: photoDataUrl
+        }
+      }
+      setCVData(updatedCVData)
+      localStorage.setItem('currentCV', JSON.stringify(updatedCVData))
+      toast.success('Foto berhasil disimpan ke CV')
+      
+      // Auto-save with timeout
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+      }
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        autoSave(updatedCVData)
+      }, 1000)
     }
   }
 
@@ -388,6 +413,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           
           {activeTab === 'templates' && (
             <TemplateSelector onTemplateSelect={handleTemplateSelect} />
+          )}
+          
+          {activeTab === 'photo' && (
+            <AIPhotoEnhancer onPhotoChange={handlePhotoChange} />
           )}
           
           {activeTab === 'preview' && (

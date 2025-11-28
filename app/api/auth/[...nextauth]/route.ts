@@ -1,5 +1,7 @@
 import NextAuth from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
+import { PrismaAdapter } from '@next-auth/prisma-adapter'
+import { prisma } from '@/lib/prisma'
 
 // Check if Google OAuth is configured
 const isGoogleConfigured = 
@@ -28,6 +30,7 @@ if (isGoogleConfigured) {
 }
 
 const handler = NextAuth({
+  adapter: PrismaAdapter(prisma),
   secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-development',
   providers,
   callbacks: {

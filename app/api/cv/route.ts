@@ -1,75 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import connectDB from '@/lib/mongodb'
-import { CV } from '@/models/CV'
+import { prisma } from '@/lib/prisma'
+import { authOptions } from '../auth/[...nextauth]/route'
 
-// GET - Get all CVs for current user
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession()
+    const session = await getServerSession(authOptions)
     
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: 'Unauthorized. Please login.' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    await connectDB()
-
-    const cvs = await CV.find({ userEmail: session.user.email })
-      .sort({ updatedAt: -1 })
-      .select('-__v')
-
-    return NextResponse.json({
-      success: true,
-      count: cvs.length,
-      data: cvs,
+    
+    const cvs = await prisma.cV.findMany({
+      where: { userEmail: session.user.email },
+      orderBy: { updatedAt: 'desc' },
+      take: 10
     })
-  } catch (error: any) {
+    
+    return NextResponse.json({ success: true, cvs })
+  } catch (error) {
     console.error('Error fetching CVs:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch CVs', details: error.message },
+      { success: false, error: 'Failed to fetch CVs' },
       { status: 500 }
     )
   }
 }
 
-// POST - Create new CV
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession()
+    const session = await getServerSession(authOptions)
     
     if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: 'Unauthorized. Please login.' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-
-    await connectDB()
-
-    // Create new CV with user info
-    const newCV = await CV.create({
-      ...body,
-      userId: session.user.id || session.user.email,
-      userEmail: session.user.email,
+    const data = await request.json()
+    
+    const cv = await prisma.cV.create({
+      data: {
+        ...data,
+        userEmail: session.user.email
+      }
     })
-
-    return NextResponse.json(
-      {
-        success: true,
-        message: 'CV created successfully',
-        data: newCV,
-      },
-      { status: 201 }
-    )
-  } catch (error: any) {
+    
+    return NextResponse.json({ success: true, cv })
+  } catch (error) {
     console.error('Error creating CV:', error)
     return NextResponse.json(
-      { error: 'Failed to create CV', details: error.message },
+      { success: false, error: 'Failed to create CV' },
       { status: 500 }
     )
   }
