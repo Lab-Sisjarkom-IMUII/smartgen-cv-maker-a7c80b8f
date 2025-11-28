@@ -3,21 +3,13 @@ import GoogleProvider from 'next-auth/providers/google'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import { prisma } from './prisma'
 
-// Check if Google OAuth is configured
-const isGoogleConfigured = 
-  process.env.GOOGLE_CLIENT_ID && 
-  process.env.GOOGLE_CLIENT_SECRET &&
-  process.env.GOOGLE_CLIENT_ID !== '' &&
-  process.env.GOOGLE_CLIENT_SECRET !== ''
-
-const providers = []
-
-// Only add Google provider if credentials are available
-if (isGoogleConfigured) {
-  providers.push(
+export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma),
+  secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-development',
+  providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      clientId: process.env.GOOGLE_CLIENT_ID || 'dummy-client-id',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || 'dummy-client-secret',
       authorization: {
         params: {
           prompt: "consent",
@@ -26,13 +18,7 @@ if (isGoogleConfigured) {
         }
       }
     })
-  )
-}
-
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
-  secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-development',
-  providers,
+  ],
   callbacks: {
     async signIn({ account, profile }) {
       return true
