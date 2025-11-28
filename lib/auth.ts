@@ -4,8 +4,7 @@ import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import { prisma } from './prisma'
 
 export const authOptions: NextAuthOptions = {
-  // Only use adapter in production/runtime, not during build
-  ...(process.env.VERCEL_ENV ? { adapter: PrismaAdapter(prisma) } : {}),
+  adapter: PrismaAdapter(prisma),
   secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-development',
   providers: [
     GoogleProvider({
