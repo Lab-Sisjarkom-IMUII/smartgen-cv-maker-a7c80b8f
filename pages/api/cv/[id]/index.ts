@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth'
-import { prisma } from '@/lib/prisma'
+import clientPromise from '@/lib/mongodb'
+import { ObjectId } from 'mongodb'
 import { authOptions } from '@/lib/auth'
 
 export default async function handler(
@@ -19,13 +20,15 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
+  const client = await clientPromise
+  const db = client.db('smartgen-cv')
+  const cvCollection = db.collection('cvs')
+
   if (req.method === 'GET') {
     try {
-      const cv = await prisma.cV.findFirst({
-        where: {
-          id,
-          userEmail: session.user.email
-        }
+      const cv = await cvCollection.findOne({
+        _id: new ObjectId(id),
+        userEmail: session.user.email
       })
 
       if (!cv) {
@@ -43,15 +46,20 @@ export default async function handler(
     try {
       const data = req.body
 
-      const updatedCV = await prisma.cV.updateMany({
-        where: {
-          id,
+      const updatedCV = await cvCollection.updateOne(
+        {
+          _id: new ObjectId(id),
           userEmail: session.user.email
         },
-        data
-      })
+        { 
+          $set: { 
+            ...data, 
+            updatedAt: new Date() 
+          } 
+        }
+      )
 
-      if (updatedCV.count === 0) {
+      if (updatedCV.matchedCount === 0) {
         return res.status(404).json({ error: 'CV not found' })
       }
 
@@ -64,14 +72,12 @@ export default async function handler(
 
   if (req.method === 'DELETE') {
     try {
-      const deletedCV = await prisma.cV.deleteMany({
-        where: {
-          id,
-          userEmail: session.user.email
-        }
+      const deletedCV = await cvCollection.deleteOne({
+        _id: new ObjectId(id),
+        userEmail: session.user.email
       })
 
-      if (deletedCV.count === 0) {
+      if (deletedCV.deletedCount === 0) {
         return res.status(404).json({ error: 'CV not found' })
       }
 

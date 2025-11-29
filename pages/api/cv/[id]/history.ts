@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getServerSession } from 'next-auth'
-import { prisma } from '@/lib/prisma'
+import clientPromise from '@/lib/mongodb'
 import { authOptions } from '@/lib/auth'
 
 export default async function handler(
@@ -19,16 +19,20 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
+  const client = await clientPromise
+  const db = client.db('smartgen-cv')
+  const historyCollection = db.collection('cv_history')
+
   if (req.method === 'GET') {
     try {
-      const history = await prisma.cVHistory.findMany({
-        where: {
+      const history = await historyCollection
+        .find({
           cvId: id,
           userEmail: session.user.email
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 50
-      })
+        })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .toArray()
       
       return res.status(200).json({ success: true, history })
     } catch (error) {
@@ -41,16 +45,17 @@ export default async function handler(
     try {
       const { data, description } = req.body
       
-      const historyEntry = await prisma.cVHistory.create({
-        data: {
-          cvId: id,
-          userEmail: session.user.email,
-          data,
-          description: description || 'CV updated'
-        }
+      const historyEntry = await historyCollection.insertOne({
+        cvId: id,
+        userEmail: session.user.email,
+        data,
+        description: description || 'CV updated',
+        createdAt: new Date()
       })
+
+      const insertedHistory = await historyCollection.findOne({ _id: historyEntry.insertedId })
       
-      return res.status(200).json({ success: true, history: historyEntry })
+      return res.status(200).json({ success: true, history: insertedHistory })
     } catch (error) {
       console.error('Error saving CV history:', error)
       return res.status(500).json({ success: false, error: 'Failed to save CV history' })

@@ -1,10 +1,10 @@
 import { NextAuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
-import { PrismaAdapter } from '@next-auth/prisma-adapter'
-import { prisma } from './prisma'
+import { MongoDBAdapter } from '@next-auth/mongodb-adapter'
+import clientPromise from './mongodb'
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: MongoDBAdapter(clientPromise),
   secret: process.env.NEXTAUTH_SECRET || 'fallback-secret-for-development',
   providers: [
     GoogleProvider({
