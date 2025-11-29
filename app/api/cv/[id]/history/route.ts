@@ -3,7 +3,14 @@ import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+// Prevent Next.js from trying to pre-render this dynamic route
+export async function generateStaticParams() {
+  return []
+}
 
 export async function GET(
   request: NextRequest,
