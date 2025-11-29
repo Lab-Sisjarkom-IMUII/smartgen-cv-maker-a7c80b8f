@@ -9,6 +9,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env.DATABASE_URL || "mysql://root:dummy@localhost:3306/railway",
+    url: process.env.DATABASE_URL || "mongodb://localhost:27017/smartgen-cv",
   },
 });
