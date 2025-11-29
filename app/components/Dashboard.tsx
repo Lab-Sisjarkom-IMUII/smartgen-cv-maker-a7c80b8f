@@ -24,7 +24,6 @@ import TemplateSelector from './TemplateSelector'
 import CVPreview from './CVPreview'
 import CVSelector from './CVSelector'
 import CVHistoryPanel from './CVHistoryPanel'
-import AIPhotoEnhancer from './AIPhotoEnhancer'
 import PWAInstallPrompt from './PWAInstallPrompt'
 import PWAStatus from './PWAStatus'
 import ServiceWorkerRegistration from './ServiceWorkerRegistration'
@@ -109,7 +108,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     { id: 'chat', label: 'AI Assistant', icon: MessageSquare },
     { id: 'builder', label: 'CV Builder', icon: FileText },
     { id: 'templates', label: 'Templates', icon: Eye },
-    { id: 'photo', label: 'AI Photo', icon: Sparkles },
     { id: 'preview', label: 'Preview', icon: Download },
   ]
 
@@ -413,10 +411,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           
           {activeTab === 'templates' && (
             <TemplateSelector onTemplateSelect={handleTemplateSelect} />
-          )}
-          
-          {activeTab === 'photo' && (
-            <AIPhotoEnhancer onPhotoChange={handlePhotoChange} />
           )}
           
           {activeTab === 'preview' && (
