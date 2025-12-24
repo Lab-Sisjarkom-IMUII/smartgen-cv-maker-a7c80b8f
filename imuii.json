@@ -1,0 +1,11 @@
+{
+  "name": "(smartgen-cv-maker)",
+  "framework": "nextjs",
+  "language": "javascript",
+  "buildCommand": "npm run build",
+  "startCommand": "npm run star",
+  "domain": "smartgencv",
+  "email": "nofalizdiharazmi@gmail.com",
+  "secretKey": "imuii_7a22496e3b2a4b2ab760753560b9992f46b6ff8542d0a0b72be30f7f21c5da90",
+  "repoUrl": "https://github.com/Lab-Sisjarkom-IMUII/smartgencv-2516cfcd.git"
+}
