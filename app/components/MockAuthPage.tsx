@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { FileText, Sparkles, Users, Shield, Mail, Lock, User } from 'lucide-react'
+import { FileText, Sparkles, Users, Shield, Mail, Lock, User, Camera, MessageSquare, Download } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import toast from 'react-hot-toast'
 
@@ -49,24 +49,24 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
 
   const features = [
     {
-      icon: <Sparkles className="w-8 h-8 text-primary-600" />,
-      title: "AI-Powered",
-      description: "Get intelligent suggestions and content optimization"
+      icon: <MessageSquare className="w-8 h-8 text-primary-600" />,
+      title: "AI Chat Assistant",
+      description: "Get personalized CV guidance and content suggestions from AI"
     },
     {
       icon: <FileText className="w-8 h-8 text-primary-600" />,
-      title: "Multiple Templates",
-      description: "Choose from various professional CV templates"
+      title: "6 Professional Templates",
+      description: "Modern, Creative, Minimalist, Executive, Academic, Startup"
     },
     {
-      icon: <Users className="w-8 h-8 text-primary-600" />,
-      title: "Easy Sharing",
-      description: "Export and share your CV in multiple formats"
+      icon: <Camera className="w-8 h-8 text-primary-600" />,
+      title: "Professional Photo Editor",
+      description: "AI-powered photo enhancement and background editing"
     },
     {
-      icon: <Shield className="w-8 h-8 text-primary-600" />,
-      title: "Secure & Private",
-      description: "Your data is protected with enterprise-grade security"
+      icon: <Download className="w-8 h-8 text-primary-600" />,
+      title: "PWA & Offline Ready",
+      description: "Install as app and work offline with secure local storage"
     }
   ]
 
@@ -83,8 +83,8 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
             SmartGen CV Maker
           </h1>
           <p className="text-xl mb-8 text-blue-100">
-            Create professional CVs with AI assistance. 
-            Stand out from the crowd with our intelligent resume builder.
+            Build professional CVs with AI chat assistance, professional photo editing, 
+            and 6+ premium templates. PWA-enabled for offline access.
           </p>
         </motion.div>
 
