@@ -109,12 +109,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   }
 
   const tabs = [
-    { id: 'chat', label: 'AI Assistant', icon: MessageSquare },
-    { id: 'builder', label: 'CV Builder', icon: FileText },
+    { id: 'chat', label: 'Asisten AI', icon: MessageSquare },
+    { id: 'builder', label: 'Pembuat CV', icon: FileText },
     { id: 'photo', label: 'Foto Profesional', icon: Camera },
     { id: 'edit', label: 'Edit Foto Pro', icon: Edit3 },
-    { id: 'templates', label: 'Templates', icon: Eye },
-    { id: 'preview', label: 'Preview', icon: Download },
+    { id: 'templates', label: 'Template', icon: Eye },
+    { id: 'preview', label: 'Pratinjau', icon: Download },
   ]
 
   const handleTabChange = (tab: TabType) => {
@@ -260,8 +260,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                   <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 hidden xs:block">SmartGen CV Maker</h1>
-                <h1 className="text-lg font-bold text-gray-900 block xs:hidden">CV Maker</h1>
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 hidden xs:block">Pembuat CV SmartGen</h1>
+                <h1 className="text-lg font-bold text-gray-900 block xs:hidden">Pembuat CV</h1>
               </div>
             </div>
             

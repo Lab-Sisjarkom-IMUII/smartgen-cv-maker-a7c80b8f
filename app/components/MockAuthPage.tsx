@@ -50,23 +50,23 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
   const features = [
     {
       icon: <MessageSquare className="w-8 h-8 text-primary-600" />,
-      title: "AI Chat Assistant",
-      description: "Get personalized CV guidance and content suggestions from AI"
+      title: "Asisten AI Chat",
+      description: "Dapatkan panduan CV personal dan saran konten dari AI"
     },
     {
       icon: <FileText className="w-8 h-8 text-primary-600" />,
-      title: "6 Professional Templates",
-      description: "Modern, Creative, Minimalist, Executive, Academic, Startup"
+      title: "6 Template Profesional",
+      description: "Modern, Kreatif, Minimalis, Eksekutif, Akademik, Startup"
     },
     {
       icon: <Camera className="w-8 h-8 text-primary-600" />,
-      title: "Professional Photo Editor",
-      description: "AI-powered photo enhancement and background editing"
+      title: "Editor Foto Profesional",
+      description: "Penyempurnaan foto bertenaga AI dan edit background"
     },
     {
       icon: <Download className="w-8 h-8 text-primary-600" />,
-      title: "PWA & Offline Ready",
-      description: "Install as app and work offline with secure local storage"
+      title: "PWA & Siap Offline",
+      description: "Install sebagai aplikasi dan kerja offline dengan penyimpanan lokal aman"
     }
   ]
 
@@ -80,11 +80,11 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
           transition={{ duration: 0.8 }}
         >
           <h1 className="text-5xl font-bold mb-6">
-            SmartGen CV Maker
+            Pembuat CV SmartGen
           </h1>
           <p className="text-xl mb-8 text-blue-100">
-            Build professional CVs with AI chat assistance, professional photo editing, 
-            and 6+ premium templates. PWA-enabled for offline access.
+            Buat CV profesional dengan bantuan AI chat, edit foto profesional, 
+            dan 6+ template premium. PWA untuk akses offline.
           </p>
         </motion.div>
 
