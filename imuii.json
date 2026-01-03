@@ -4,9 +4,8 @@
   "language": "javascript",
   "buildCommand": "next build",
   "startCommand": "next start",
-  "domain": "smartgencv",
+  "domain": "smartgen-cv-maker",
   "email": "nofalizdiharazmi@gmail.com",
-  "secretKey": "imuii_7a22496e3b2a4b2ab760753560b9992f46b6ff8542d0a0b72be30f7f21c5da90",
-  "repoUrl": "https://github.com/Lab-Sisjarkom-IMUII/smartgencv-2516cfcd.git",
-  "repo": ""
+  "secretKey": "imuii_2865e868203131b830742bca37add910b4b6e599f7ecb9f5fe715fe389e82720",
+  "repoUrl": "https://github.com/Lab-Sisjarkom-IMUII/smartgen-cv-maker-a7c80b8f.git"
 }
