@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import clientPromise from '@/lib/mongodb'
-import { ObjectId } from 'mongodb'
+// MongoDB disabled for static deployment
+// import clientPromise from '@/lib/mongodb'
+// import { ObjectId } from 'mongodb'
 
 interface Params {
   id: string
@@ -16,7 +17,17 @@ export async function GET(request: NextRequest, { params }: { params: Params }) 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Database disabled for static deployment
+    return NextResponse.json({ error: 'Database not configured - static deployment' }, { status: 503 })
+
+    /* MongoDB code disabled
     const client = await clientPromise
+    
+    // Handle case when MongoDB is not configured (static deployment)
+    if (!client) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
+    }
+    
     const db = client.db('cv-maker')
     
     const cv = await db.collection('cvs').findOne({ 
@@ -29,9 +40,10 @@ export async function GET(request: NextRequest, { params }: { params: Params }) 
     }
 
     return NextResponse.json(cv)
+    */
   } catch (error) {
     console.error('CV fetch error:', error)
-    return NextResponse.json({ error: 'Failed to fetch CV' }, { status: 500 })
+    return NextResponse.json({ error: 'Database not available' }, { status: 503 })
   }
 }
 
@@ -45,7 +57,17 @@ export async function PUT(request: NextRequest, { params }: { params: Params }) 
 
     const cvData = await request.json()
     
+    // Database disabled for static deployment
+    return NextResponse.json({ success: true, _isTemporary: true })
+
+    /* MongoDB code disabled
     const client = await clientPromise
+    
+    // Handle case when MongoDB is not configured (static deployment)
+    if (!client) {
+      return NextResponse.json({ success: true, _isTemporary: true })
+    }
+    
     const db = client.db('cv-maker')
     
     const result = await db.collection('cvs').updateOne(
@@ -66,8 +88,9 @@ export async function PUT(request: NextRequest, { params }: { params: Params }) 
     }
 
     return NextResponse.json({ success: true })
+    */
   } catch (error) {
     console.error('CV update error:', error)
-    return NextResponse.json({ error: 'Failed to update CV' }, { status: 500 })
+    return NextResponse.json({ error: 'Database not available' }, { status: 503 })
   }
 }
