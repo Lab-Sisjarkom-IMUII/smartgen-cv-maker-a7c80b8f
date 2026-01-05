@@ -60,66 +60,84 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
     },
     {
       icon: <Camera className="w-8 h-8 text-primary-600" />,
-      title: "Editor Foto Profesional",
-      description: "Penyempurnaan foto bertenaga AI dan edit background"
+      title: "Upload Foto Profesional",
+      description: "Upload foto untuk CV Anda dengan format JPEG, PNG, atau WebP"
     },
     {
       icon: <Download className="w-8 h-8 text-primary-600" />,
-      title: "PWA & Siap Offline",
-      description: "Install sebagai aplikasi dan kerja offline dengan penyimpanan lokal aman"
+      title: "Export & Download",
+      description: "Download CV dalam format PDF, PNG, atau bagikan langsung ke sosial media"
     }
   ]
 
   return (
-    <div className="min-h-screen gradient-bg flex">
-      {/* Left Side - Branding & Features */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-12 text-white">
+    <div className="min-h-screen gradient-bg">
+      {/* Mobile Header - Visible only on mobile */}
+      <div className="lg:hidden px-4 py-6 text-white text-center">
         <motion.div
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8 }}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
         >
-          <h1 className="text-5xl font-bold mb-6">
-            Pembuat CV SmartGen
+          <h1 className="text-2xl font-bold mb-3">
+            SmartGen CV Maker
           </h1>
-          <p className="text-xl mb-8 text-blue-100">
-            Buat CV profesional dengan bantuan AI chat, edit foto profesional, 
-            dan 6+ template premium. PWA untuk akses offline.
+          <p className="text-sm text-blue-100">
+            Buat CV profesional dengan bantuan AI
           </p>
         </motion.div>
-
-        <div className="grid grid-cols-2 gap-6">
-          {features.map((feature, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              className="glass-effect rounded-lg p-6"
-            >
-              <div className="mb-4">{feature.icon}</div>
-              <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-              <p className="text-blue-100 text-sm">{feature.description}</p>
-            </motion.div>
-          ))}
-        </div>
       </div>
 
-      {/* Right Side - Auth Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center px-8">
-        <motion.div
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8 }}
-          className="w-full max-w-md"
-        >
-          <div className="glass-effect rounded-2xl p-8">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-white mb-2">
-                {isSignUp ? 'Create Account' : 'Welcome Back'}
-              </h2>
+      {/* Main Content */}
+      <div className="flex flex-col lg:flex-row min-h-screen lg:min-h-auto">
+        {/* Left Side - Branding & Features - Hidden on mobile, shown on lg+ */}
+        <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-8 xl:px-12 text-white">
+          <motion.div
+            initial={{ opacity: 0, x: -50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <h1 className="text-4xl xl:text-5xl font-bold mb-6">
+              SmartGen CV Maker
+            </h1>
+            <p className="text-lg xl:text-xl mb-8 text-blue-100">
+              Buat CV profesional dengan bantuan AI chat, upload foto profesional, 
+              dan 6+ template premium. Export ke PDF atau berbagi langsung.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-6">
+            {features.map((feature, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                className="glass-effect rounded-lg p-4 xl:p-6"
+              >
+                <div className="mb-3">{feature.icon}</div>
+                <h3 className="text-base xl:text-lg font-semibold mb-2">{feature.title}</h3>
+                <p className="text-blue-100 text-xs xl:text-sm">{feature.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right Side - Auth Form */}
+        <div className="w-full lg:w-1/2 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 lg:py-0">
+          <motion.div
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+            className="w-full max-w-md"
+          >
+            <div className="glass-effect rounded-xl lg:rounded-2xl p-6 lg:p-8">
+              <div className="text-center mb-6 lg:mb-8">
+                <h2 className="text-2xl lg:text-3xl font-bold text-white mb-2">
+                  {isSignUp ? 'Buat Akun' : 'Selamat Datang'}
+                </h2>
               <p className="text-blue-100">
-                {isSignUp ? 'Join SmartGen CV Maker today' : 'Login to your account'}
+                {isSignUp ? 'Bergabung dengan SmartGen CV Maker hari ini' : 'Masuk ke akun Anda'}
               </p>
             </div>
 
@@ -139,7 +157,7 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
-                  <span>Continue with Google</span>
+                  <span>Lanjutkan dengan Google</span>
                 </>
               )}
             </button>
@@ -150,7 +168,7 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
                 <div className="w-full border-t border-blue-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-transparent text-blue-100">Or continue with email</span>
+                <span className="px-4 bg-transparent text-blue-100">Atau lanjutkan dengan email</span>
               </div>
             </div>
 
@@ -159,7 +177,7 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
               {isSignUp && (
                 <div>
                   <label className="block text-sm font-medium text-blue-100 mb-2">
-                    Full Name
+                    Nama Lengkap
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -168,7 +186,7 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
                       className="w-full pl-10 pr-4 py-3 bg-white/10 border border-blue-300 rounded-lg text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      placeholder="John Doe"
+                      placeholder="Nama Lengkap"
                       required={isSignUp}
                     />
                   </div>
@@ -177,7 +195,7 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
 
               <div>
                 <label className="block text-sm font-medium text-blue-100 mb-2">
-                  Email Address
+                  Alamat Email
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -186,7 +204,7 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     className="w-full pl-10 pr-4 py-3 bg-white/10 border border-blue-300 rounded-lg text-white placeholder-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    placeholder="you@example.com"
+                    placeholder="nama@email.com"
                     required
                   />
                 </div>
@@ -194,7 +212,7 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
 
               <div>
                 <label className="block text-sm font-medium text-blue-100 mb-2">
-                  Password
+                  Kata Sandi
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -220,7 +238,7 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   </div>
                 ) : (
-                  <span>{isSignUp ? 'Create Account' : 'Sign In'}</span>
+                  <span>{isSignUp ? 'Buat Akun' : 'Masuk'}</span>
                 )}
               </button>
             </form>
@@ -232,20 +250,47 @@ export default function MockAuthPage({ onLogin }: MockAuthPageProps) {
                 className="text-blue-100 hover:text-white transition-colors text-sm"
               >
                 {isSignUp ? (
-                  <>Already have an account? <span className="font-semibold">Sign In</span></>
+                  <>Sudah punya akun? <span className="font-semibold">Masuk</span></>
                 ) : (
-                  <>Don't have an account? <span className="font-semibold">Sign Up</span></>
+                  <>Belum punya akun? <span className="font-semibold">Daftar</span></>
                 )}
               </button>
             </div>
 
             <div className="mt-4 text-center">
               <p className="text-blue-100 text-xs">
-                Demo Mode: Any email/password will work for testing
+                Mode Demo: Email/password apapun bisa digunakan untuk testing
               </p>
             </div>
-          </div>
-        </motion.div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Mobile Features Section - Only visible on mobile */}
+      <div className="lg:hidden px-4 py-8 text-white">
+        <div className="text-center mb-6">
+          <h3 className="text-xl font-bold mb-2">Fitur Unggulan</h3>
+          <p className="text-blue-100 text-sm">
+            Semua yang Anda butuhkan untuk membuat CV profesional
+          </p>
+        </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">
+          {features.map((feature, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              className="glass-effect rounded-lg p-4 text-center"
+            >
+              <div className="mb-3 flex justify-center">{feature.icon}</div>
+              <h4 className="text-sm font-semibold mb-2">{feature.title}</h4>
+              <p className="text-blue-100 text-xs">{feature.description}</p>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </div>
   )

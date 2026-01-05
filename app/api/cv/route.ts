@@ -13,7 +13,7 @@ export async function GET() {
     }
 
     // Database disabled for static deployment - return empty array
-    return NextResponse.json([])
+    return NextResponse.json({ success: true, cvs: [] })
 
     /* MongoDB code disabled
     const client = await clientPromise
@@ -48,13 +48,18 @@ export async function POST(request: NextRequest) {
     const cvData = await request.json()
     
     // Database disabled for static deployment - return temp response
-    return NextResponse.json({ 
-      id: 'temp_' + Date.now(), 
+    const newCV = { 
+      _id: 'temp_' + Date.now(), 
       ...cvData,
       userEmail: session.user.email,
       createdAt: new Date(),
       updatedAt: new Date(),
       _isTemporary: true
+    }
+    
+    return NextResponse.json({ 
+      success: true, 
+      data: newCV 
     })
 
     /* MongoDB code disabled
@@ -92,6 +97,65 @@ export async function POST(request: NextRequest) {
     */
   } catch (error) {
     console.error('CV save error:', error)
+    return NextResponse.json({ error: 'Database not available' }, { status: 503 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    
+    if (!id) {
+      return NextResponse.json({ error: 'CV ID required for deletion' }, { status: 400 })
+    }
+
+    // Database disabled for static deployment - return success response
+    return NextResponse.json({ 
+      success: true,
+      id: id,
+      message: 'CV deleted successfully',
+      _isTemporary: true,
+      _operation: 'deleted'
+    })
+
+    /* MongoDB code for when database is enabled
+    const client = await clientPromise
+    
+    if (!client) {
+      return NextResponse.json({ 
+        success: true,
+        id: id,
+        message: 'CV deleted (temp mode)',
+        _isTemporary: true
+      })
+    }
+    
+    const db = client.db('cv-maker')
+    
+    const result = await db.collection('cvs').deleteOne({ 
+      _id: new ObjectId(id), 
+      userEmail: session.user.email 
+    })
+    
+    if (result.deletedCount === 0) {
+      return NextResponse.json({ error: 'CV not found or access denied' }, { status: 404 })
+    }
+    
+    return NextResponse.json({ 
+      success: true,
+      id: id,
+      message: 'CV deleted successfully'
+    })
+    */
+  } catch (error) {
+    console.error('CV delete error:', error)
     return NextResponse.json({ error: 'Database not available' }, { status: 503 })
   }
 }

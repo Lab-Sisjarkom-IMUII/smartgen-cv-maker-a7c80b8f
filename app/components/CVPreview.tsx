@@ -23,6 +23,8 @@ interface CVPreviewProps {
 }
 
 export default function CVPreview({ cvData, template, onClear }: CVPreviewProps) {
+  const [isDeleting, setIsDeleting] = useState(false)
+  
   // Normalize data shapes: some flows use `experience` while others use `experiences`.
   const normalizedCvData = {
     ...cvData,
@@ -41,14 +43,20 @@ export default function CVPreview({ cvData, template, onClear }: CVPreviewProps)
 
   const sanitizedCvData = (() => {
     const out: any = { ...normalizedCvData }
+    
+    // Helper function to get person's name from either field name
+    const getPersonName = (personalInfo: any) => {
+      return personalInfo?.name || personalInfo?.fullName || ''
+    }
+    
     // personalInfo
     out.personalInfo = {
-      name: sanitizeText(out.personalInfo?.name),
+      name: sanitizeText(getPersonName(out.personalInfo)),
       email: sanitizeText(out.personalInfo?.email),
       phone: sanitizeText(out.personalInfo?.phone),
       address: sanitizeText(out.personalInfo?.address),
       summary: sanitizeText(out.personalInfo?.summary),
-      photo: sanitizeText(out.personalInfo?.photo)
+      photo: out.personalInfo?.photo || '' // DON'T sanitize photo - keep original base64
     }
 
     // experiences: ensure fields exist and trim, remove accidental duplication of name as position
@@ -59,9 +67,10 @@ export default function CVPreview({ cvData, template, onClear }: CVPreviewProps)
       let description = sanitizeText(e?.description)
 
       // If position equals the person's name (common AI mistake), clear it
-      if (out.personalInfo?.name && position && position.toLowerCase().includes(out.personalInfo.name.toLowerCase())) {
+      const personName = getPersonName(out.personalInfo)
+      if (personName && position && position.toLowerCase().includes(personName.toLowerCase())) {
         // Remove the name from position
-        const cleaned = position.replace(new RegExp(out.personalInfo.name, 'ig'), '').replace(/^[,\s-:]+/, '')
+        const cleaned = position.replace(new RegExp(personName, 'ig'), '').replace(/^[,\s-:]+/, '')
         // if nothing left, set to empty
         if (!cleaned.trim()) {
           // move any leftover into description if description is empty
@@ -250,6 +259,46 @@ export default function CVPreview({ cvData, template, onClear }: CVPreviewProps)
     window.print()
   }
 
+  const handleDeleteCV = async () => {
+    if (!cvData?.id) {
+      // If no ID, just clear the local data
+      if (onClear) {
+        onClear()
+        toast.success('CV data cleared successfully!')
+      }
+      return
+    }
+
+    const isConfirmed = window.confirm('Are you sure you want to delete this CV? This action cannot be undone.')
+    if (!isConfirmed) return
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/cv?id=${cvData.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        toast.success('CV deleted successfully!')
+        if (onClear) {
+          onClear()
+        }
+      } else {
+        throw new Error(result.error || 'Failed to delete CV')
+      }
+    } catch (error) {
+      console.error('Delete CV error:', error)
+      toast.error('Failed to delete CV. Please try again.')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   if (!cvData) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -338,6 +387,16 @@ export default function CVPreview({ cvData, template, onClear }: CVPreviewProps)
               >
                 <Printer className="w-4 h-4" />
                 <span>Print</span>
+              </button>
+              
+              <button
+                onClick={handleDeleteCV}
+                disabled={isDeleting}
+                className="flex items-center space-x-1 sm:space-x-2 bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors text-sm font-medium"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden xs:inline">{isDeleting ? 'Deleting...' : 'Delete'}</span>
+                <span className="xs:hidden">{isDeleting ? '...' : 'Del'}</span>
               </button>
             </div>
           </div>
@@ -728,12 +787,23 @@ function ExecutiveTemplate({ cvData }: { cvData: any }) {
     <div className="p-8">
       {/* Header */}
       <div className="border-b-4 border-gray-800 pb-6 mb-6">
-        <div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-gray-600">
-            <div>{cvData.personalInfo?.email || 'email@example.com'}</div>
-            <div>{cvData.personalInfo?.phone || '+62 812 3456 7890'}</div>
-            <div>{cvData.personalInfo?.address || 'Alamat'}</div>
+        <div className="flex items-center gap-6">
+          {cvData.personalInfo?.photo && (
+            <div className="flex-shrink-0">
+              <img 
+                src={cvData.personalInfo.photo} 
+                alt="Profile" 
+                className="w-24 h-24 lg:w-28 lg:h-28 rounded-lg object-cover shadow-lg"
+              />
+            </div>
+          )}
+          <div className="flex-1">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-gray-600">
+              <div>{cvData.personalInfo?.email || 'email@example.com'}</div>
+              <div>{cvData.personalInfo?.phone || '+62 812 3456 7890'}</div>
+              <div>{cvData.personalInfo?.address || 'Alamat'}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -825,6 +895,15 @@ function AcademicTemplate({ cvData }: { cvData: any }) {
     <div className="p-8">
       {/* Header */}
       <div className="text-center mb-8">
+        {cvData.personalInfo?.photo && (
+          <div className="flex justify-center mb-4">
+            <img 
+              src={cvData.personalInfo.photo} 
+              alt="Profile" 
+              className="w-28 h-28 lg:w-32 lg:h-32 rounded-full object-cover shadow-lg border-4 border-gray-200"
+            />
+          </div>
+        )}
         <h1 className="text-3xl font-bold text-gray-900 mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
         <div className="text-gray-600 space-y-1">
           <p>{cvData.personalInfo?.email || 'email@example.com'}</p>
@@ -917,12 +996,23 @@ function StartupTemplate({ cvData }: { cvData: any }) {
     <div className="p-8">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg mb-6">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <span>📧 {cvData.personalInfo?.email || 'email@example.com'}</span>
-            <span>📱 {cvData.personalInfo?.phone || '+62 812 3456 7890'}</span>
-            <span>📍 {cvData.personalInfo?.address || 'Alamat'}</span>
+        <div className="flex items-center gap-4">
+          {cvData.personalInfo?.photo && (
+            <div className="flex-shrink-0">
+              <img 
+                src={cvData.personalInfo.photo} 
+                alt="Profile" 
+                className="w-20 h-20 lg:w-24 lg:h-24 rounded-full object-cover border-4 border-white shadow-lg"
+              />
+            </div>
+          )}
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold mb-2">{cvData.personalInfo?.name || 'Nama Lengkap'}</h1>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span>📧 {cvData.personalInfo?.email || 'email@example.com'}</span>
+              <span>📱 {cvData.personalInfo?.phone || '+62 812 3456 7890'}</span>
+              <span>📍 {cvData.personalInfo?.address || 'Alamat'}</span>
+            </div>
           </div>
         </div>
       </div>

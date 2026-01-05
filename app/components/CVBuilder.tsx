@@ -16,7 +16,7 @@ import {
   Camera
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import ProfessionalPhotoEnhancer from './ProfessionalPhotoEnhancer'
+import SimplePhotoUploader from './SimplePhotoUploader'
 
 interface CVData {
   personalInfo: {
@@ -334,14 +334,13 @@ export default function CVBuilder({ cvData, template, onDataUpdate }: CVBuilderP
               )}
 
               {activeSection === 'photo' && (
-                <ProfessionalPhotoEnhancer 
-                  onPhotoGenerated={(imageUrl: string) => {
+                <SimplePhotoUploader 
+                  onPhotoComplete={(imageUrl: string) => {
                     setData(prev => {
                       const next = { 
                         ...prev, 
                         personalInfo: { ...prev.personalInfo, photo: imageUrl } 
                       }
-                      // notify parent/dashboard immediately so preview updates
                       onDataUpdate && onDataUpdate(next)
                       return next
                     })

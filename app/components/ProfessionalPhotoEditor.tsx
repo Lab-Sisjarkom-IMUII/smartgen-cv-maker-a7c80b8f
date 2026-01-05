@@ -32,32 +32,65 @@ export default function ProfessionalPhotoEditor({
     const file = event.target.files?.[0]
     if (!file) return
 
-    // Validate file type - PNG only for DALL-E 2 editing
-    if (file.type !== 'image/png') {
-      toast.error('File harus berformat PNG! DALL-E 2 editing memerlukan file PNG untuk hasil terbaik.', {
+    // Validate file type - Support multiple formats
+    const supportedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp']
+    if (!supportedTypes.includes(file.type)) {
+      toast.error('Format tidak didukung! Upload JPEG, PNG, atau WebP.', {
         duration: 5000
       })
       return
     }
 
-    // Validate file size (max 4MB)
-    const maxSize = 4 * 1024 * 1024
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024
     if (file.size > maxSize) {
-      toast.error('Ukuran file terlalu besar! Maksimal 4MB.')
+      toast.error('Ukuran file terlalu besar! Maksimal 10MB.')
       return
     }
 
-    setSelectedImage(file)
+    // Convert to PNG if needed (for DALL-E compatibility)
+    if (file.type !== 'image/png') {
+      convertToPNG(file)
+    } else {
+      setSelectedImage(file)
+      createPreview(file)
+    }
+
+    // Reset edited image
+    setEditedImage(null)
+  }
+
+  const convertToPNG = (file: File) => {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    const img = new Image()
     
-    // Create preview
+    img.onload = () => {
+      canvas.width = img.width
+      canvas.height = img.height
+      ctx?.drawImage(img, 0, 0)
+      
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const pngFile = new File([blob], file.name.replace(/\.(jpg|jpeg|webp)$/i, '.png'), {
+            type: 'image/png'
+          })
+          setSelectedImage(pngFile)
+          createPreview(pngFile)
+          toast.success(`✅ ${file.type.split('/')[1].toUpperCase()} berhasil dikonversi ke PNG untuk AI editing!`)
+        }
+      }, 'image/png', 0.95)
+    }
+    
+    img.src = URL.createObjectURL(file)
+  }
+
+  const createPreview = (file: File) => {
     const reader = new FileReader()
     reader.onload = (e) => {
       setImagePreview(e.target?.result as string)
     }
     reader.readAsDataURL(file)
-
-    // Reset edited image
-    setEditedImage(null)
   }
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
@@ -152,12 +185,12 @@ export default function ProfessionalPhotoEditor({
         <div className="flex items-center justify-center gap-3 mb-4">
           <Edit3 className="w-8 h-8 text-purple-600" />
           <h2 className="text-3xl font-bold text-gray-800">
-            Edit Foto Profesional CV
+            🚀 Enhanced Photo Editor - Multi Format
           </h2>
         </div>
         <p className="text-gray-600 max-w-3xl mx-auto">
-          Upload foto PNG Anda dan biarkan AI mengedit latar belakang secara profesional. 
-          Fitur wajah dan identitas Anda akan tetap sama persis, hanya background yang diubah.
+          Upload foto JPEG, PNG, atau WebP dan biarkan AI mengedit latar belakang secara profesional. 
+          ✅ Auto-convert ke PNG untuk AI compatibility. Fitur wajah dan identitas tetap sama persis!
         </p>
       </div>
 
@@ -206,8 +239,8 @@ export default function ProfessionalPhotoEditor({
                   <p className="text-xl font-semibold text-gray-800 mb-2" style={{ color: '#1f2937' }}>
                     Drag & drop foto atau klik untuk upload
                   </p>
-                  <p className="text-lg font-medium text-gray-600" style={{ color: '#4b5563' }}>
-                    PNG saja (Max 4MB) - DALL-E 2 requirement
+                  <p className="text-lg font-medium text-purple-600" style={{ color: '#7c3aed' }}>
+                    ✅ JPEG, PNG, WebP (Max 10MB) - Auto convert to PNG
                   </p>
                 </div>
               )}

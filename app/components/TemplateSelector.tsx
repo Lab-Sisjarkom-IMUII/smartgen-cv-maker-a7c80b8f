@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Eye, Check, Star } from 'lucide-react'
 
@@ -64,11 +64,20 @@ const templates: Template[] = [
 
 interface TemplateSelectorProps {
   onTemplateSelect: (templateId: string) => void
+  selectedTemplate?: string
 }
 
-export default function TemplateSelector({ onTemplateSelect }: TemplateSelectorProps) {
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+export default function TemplateSelector({ onTemplateSelect, selectedTemplate: currentTemplate }: TemplateSelectorProps) {
+  const [selectedTemplate, setSelectedTemplate] = useState<string>(currentTemplate || '')
   const [filter, setFilter] = useState<string>('all')
+
+  // Sync dengan parent template - hanya update jika berbeda
+  useEffect(() => {
+    if (currentTemplate && currentTemplate !== selectedTemplate) {
+      console.log('🔄 TemplateSelector syncing with parent:', currentTemplate)
+      setSelectedTemplate(currentTemplate)
+    }
+  }, [currentTemplate])
 
   const categories = ['all', 'Professional', 'Creative', 'Executive', 'Academic', 'Tech']
   const filteredTemplates = filter === 'all' 
@@ -76,6 +85,7 @@ export default function TemplateSelector({ onTemplateSelect }: TemplateSelectorP
     : templates.filter(template => template.category === filter)
 
   const handleTemplateSelect = (templateId: string) => {
+    console.log('🎨 TemplateSelector: selecting template', templateId)
     setSelectedTemplate(templateId)
     onTemplateSelect(templateId)
   }

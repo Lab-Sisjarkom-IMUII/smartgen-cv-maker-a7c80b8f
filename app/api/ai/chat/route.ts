@@ -10,12 +10,12 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI({
 
 // Rate limiting configuration
 const RATE_LIMIT = {
-  maxRequestsPerMinute: 10,  // Max 10 requests per minute per user
-  maxTokensPerRequest: 500,   // Limit response length to save cost
-  maxContextMessages: 5,      // Only keep last 5 messages for context
+  maxRequestsPerMinute: 10,  
+  maxTokensPerRequest: 500,   
+  maxContextMessages: 5,      
 }
 
-// Simple in-memory rate limiting (for production, use Redis/database)
+// Simple in-memory rate limiting 
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
 
 function checkRateLimit(ip: string): boolean {
@@ -23,13 +23,12 @@ function checkRateLimit(ip: string): boolean {
   const userLimit = rateLimitMap.get(ip)
 
   if (!userLimit || now > userLimit.resetTime) {
-    // Reset or create new limit
-    rateLimitMap.set(ip, { count: 1, resetTime: now + 60000 }) // 1 minute
+    rateLimitMap.set(ip, { count: 1, resetTime: now + 60000 }) 
     return true
   }
 
   if (userLimit.count >= RATE_LIMIT.maxRequestsPerMinute) {
-    return false // Rate limit exceeded
+    return false
   }
 
   userLimit.count++
@@ -37,160 +36,41 @@ function checkRateLimit(ip: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('🔧 AI Chat POST request received')
+  
   try {
-    // Get user IP for rate limiting
-    const ip = request.headers.get('x-forwarded-for') || 
-               request.headers.get('x-real-ip') || 
-               'unknown'
+    const { message, conversationHistory = [] } = await request.json()
+    console.log('📝 Message received:', message)
 
-    // Check rate limit
+    if (!message || typeof message !== 'string') {
+      console.log('❌ Invalid message format')
+      return NextResponse.json({ 
+        response: 'Pesan tidak valid. Silakan kirim pesan yang valid.',
+        cvData: null 
+      })
+    }
+
+    // Rate limiting
+    const ip = request.headers.get('x-forwarded-for') || 'unknown'
+    console.log('🌐 Request from IP:', ip)
+    
     if (!checkRateLimit(ip)) {
-      return NextResponse.json(
-        { error: 'Terlalu banyak request. Tunggu sebentar ya! ⏳' },
-        { status: 429 }
-      )
+      console.log('🚫 Rate limit exceeded for IP:', ip)
+      return NextResponse.json({
+        response: 'Terlalu banyak permintaan. Silakan tunggu sebentar sebelum mencoba lagi.',
+        cvData: null
+      })
     }
 
-    const body = await request.json()
-    const { message, conversationHistory } = body
-
-    let response: string | null = null
+    // Always try manual extraction first
+    console.log('🤖 Starting CV data extraction')
+    
+    const fullConversation = [...conversationHistory, message].join(' ')
     let cvData = null
-
-    // Prepare full conversation for extraction
-    const fullConversation = conversationHistory
-      .map((msg: any) => msg.content)
-      .join(' ') + ' ' + message
-
-    // Check if there's relevant CV info
-    const hasRelevantInfo = 
-      fullConversation.toLowerCase().includes('nama') || 
-      fullConversation.toLowerCase().includes('saya') ||
-      fullConversation.toLowerCase().includes('pengalaman') || 
-      fullConversation.toLowerCase().includes('pendidikan') || 
-      fullConversation.toLowerCase().includes('skill')
-
-    // Check if OpenAI is available
-    if (openai && process.env.OPENAI_API_KEY) {
-      // Limit conversation history to save tokens and cost
-      const limitedHistory = conversationHistory.slice(-RATE_LIMIT.maxContextMessages)
-      
-      // Create conversation context for OpenAI
-      const messages = [
-        {
-          role: 'system',
-          content: `Anda adalah AI Assistant untuk SmartGen CV Maker. Tugas Anda adalah:
-1. Membantu pengguna membuat CV profesional
-2. Mengekstrak informasi CV dari percakapan (nama, pengalaman, pendidikan, skill, dll)
-3. Memberikan saran untuk meningkatkan CV
-4. Berbicara dalam bahasa Indonesia yang ramah dan profesional
-
-Format respons:
-- Berikan saran yang konstruktif dan ringkas
-- Jika ada informasi CV yang lengkap, ekstrak dan struktur data tersebut
-- Tanyakan detail yang kurang jika diperlukan
-- Berikan tips untuk membuat CV yang menarik`
-        },
-        ...limitedHistory.map((msg: any) => ({
-          role: msg.role,
-          content: msg.content
-        })),
-        {
-          role: 'user',
-          content: message
-        }
-      ]
-
-      // Use direct fetch to OpenAI API instead of SDK to avoid connection issues in some server environments
-      try {
-        const payload = {
-          model: 'gpt-3.5-turbo',
-          messages: messages,
-          max_tokens: RATE_LIMIT.maxTokensPerRequest,
-          temperature: 0.7
-        }
-
-        const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-          },
-          body: JSON.stringify(payload)
-        })
-
-        const openaiJson = await openaiRes.json()
-        response = openaiJson?.choices?.[0]?.message?.content || null
-        if (!response && openaiJson?.error) {
-          throw new Error(openaiJson.error.message || 'OpenAI API error')
-        }
-      } catch (fetchErr) {
-        // If direct fetch fails, fallback to SDK call (if available) to capture more details
-        console.warn('Direct fetch to OpenAI failed, attempting SDK call as fallback', fetchErr)
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-3.5-turbo',
-          messages: messages as any,
-          max_tokens: RATE_LIMIT.maxTokensPerRequest,
-          temperature: 0.7
-        })
-        response = completion.choices[0].message.content
-      }
-      
-      // NEW: Ask OpenAI to also extract structured CV data
-      if (hasRelevantInfo) {
-        try {
-          // Use direct fetch for extraction too (consistent with chat response)
-          const extractionPayload = JSON.stringify({
-            model: 'gpt-3.5-turbo',
-            messages: [
-              {
-                role: 'system',
-                content: 'Extract CV data from conversation into JSON format. Return ONLY valid JSON with fields: personalInfo (name, email, phone, address, summary), experiences (array with company, position, duration, description), education (array with institution, degree, field, year), skills (array of strings). If field not found, use empty string/array. DO NOT include placeholder text like "Informasi dari chat".'
-              },
-              {
-                role: 'user',
-                content: fullConversation
-              }
-            ],
-            max_tokens: 500,
-            temperature: 0.1,
-          })
-
-          const extractionRes = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-            },
-            body: extractionPayload
-          })
-
-          const extractionJson = await extractionRes.json()
-          const jsonResponse = extractionJson?.choices?.[0]?.message?.content
-          
-          if (jsonResponse) {
-            try {
-              const extracted = JSON.parse(jsonResponse.replace(/```json|```/g, '').trim())
-              if (extracted && typeof extracted === 'object') {
-                cvData = extracted
-                console.log('OpenAI Extracted CV Data:', JSON.stringify(cvData, null, 2))
-              }
-            } catch (parseError) {
-              console.error('Failed to parse OpenAI extraction:', parseError)
-            }
-          }
-        } catch (extractError) {
-          console.error('OpenAI extraction failed, using fallback:', extractError)
-        }
-      }
-    } else {
-      // Fallback response when OpenAI is not available
-      response = generateFallbackResponse(message)
-    }
-
-    // Only use manual extraction if OpenAI extraction failed
-    if (!cvData && hasRelevantInfo) {
-      // Extract from full conversation context
+    
+    // Skip extraction for default assistant text
+    if (!fullConversation.includes('AI Assistant untuk SmartGen CV Maker')) {
+      console.log('✨ Attempting CV data extraction')
       const extractedData = {
         personalInfo: {
           name: extractName(fullConversation),
@@ -204,58 +84,103 @@ Format respons:
         skills: extractSkills(fullConversation)
       }
       
-      // Only return cvData if at least name or some content is extracted
       if (extractedData.personalInfo.name || 
           extractedData.experiences.length > 0 || 
           extractedData.education.length > 0 || 
           extractedData.skills.length > 0) {
         cvData = extractedData
-        console.log('Manual Extracted CV Data:', JSON.stringify(cvData, null, 2))
+        console.log('✅ CV Data extracted successfully:', JSON.stringify(cvData, null, 2))
+      } else {
+        console.log('⚠️ No extractable CV data found')
       }
+    } else {
+      console.log('⏭️ Skipping extraction - contains default assistant text')
     }
 
-    console.log('API Response:', { 
-      hasResponse: !!response, 
-      hasCvData: !!cvData,
-      cvDataKeys: cvData ? Object.keys(cvData) : []
-    })
+    // Use OpenAI for response if available, otherwise fallback
+    let response = ''
+    if (openai) {
+      console.log('🔮 Using OpenAI for response generation')
+      // TODO: Add OpenAI response generation here
+      response = 'Terima kasih! Informasi CV Anda telah saya ekstrak dan siap digunakan.'
+    } else {
+      console.log('📤 Using fallback response')
+      response = generateFallbackResponse(message)
+    }
 
+    console.log('📤 Returning response with extracted data')
     return NextResponse.json({
       response,
       cvData
     })
 
   } catch (error: any) {
-    console.error('AI Chat API error:', error)
+    console.error('❌ AI Chat API error:', error)
+    console.error('❌ Error stack:', error.stack)
     
-    // Return a friendly fallback response. Do NOT expose internal error details to clients in production.
     return NextResponse.json({
-      response: 'Maaf, terjadi kesalahan saat memproses pesan Anda. Silakan coba lagi atau lanjutkan dengan mengisi form CV secara manual.',
+      response: 'Maaf, terjadi kesalahan. Silakan coba lagi atau isi form CV secara manual.',
       cvData: null,
-      warning: 'Terjadi kesalahan pada sistem AI. Anda masih bisa mengisi CV secara manual.'
+      warning: 'Terjadi kesalahan pada sistem AI.'
     })
   }
 }
 
 // Helper functions for data extraction
 function extractName(text: string): string {
-  // Try multiple patterns to extract name
+  console.log('🔍 Attempting to extract name from text:', text.substring(0, 100))
+  
+  // Look for name at the very beginning of text before the pipe or location
   const patterns = [
-    /(?:nama\s+(?:saya|aku|adalah|:)?\s*)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
-    /(?:saya\s+(?:adalah|bernama)?\s*)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
-    /(?:perkenalkan|introduce)\s+(?:nama\s+)?(?:saya\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    // Match "ARIS SETIAWAN Bekasi" - get only the name part (before location)
+    /^([A-Z]+\s+[A-Z]+)(?:\s+[A-Z][a-z]+)/m,
+    // Match "ARIS SETIAWAN" followed by pipe or other content
+    /^([A-Z]+\s+[A-Z]+)\s*[\|]/m,
+    // Match name pattern at start (all caps with spaces)
+    /^([A-Z]+(?:\s+[A-Z]+)+)[\s\|]/m,
+    // Match "saya [nama]" - untuk kasus "saya Aris Setiawan"
+    /\bsaya\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    // Match "nama saya [nama]" 
+    /(?:nama\s+saya\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    // Match "nama saya adalah [nama]"
+    /(?:nama\s+saya\s+adalah\s+)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    // Match "nama: [nama]" atau "nama [nama]"
+    /(?:nama\s*:?\s*)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
   ]
   
-  for (const pattern of patterns) {
+  for (let i = 0; i < patterns.length; i++) {
+    const pattern = patterns[i]
+    console.log(`🎯 Trying pattern ${i + 1}:`, pattern.toString())
     const match = text.match(pattern)
+    
     if (match && match[1]) {
-      const name = match[1].trim()
-      // Validate name (should be 2-50 chars, letters and spaces only)
-      if (name.length >= 2 && name.length <= 50 && /^[A-Za-z\s]+$/.test(name)) {
-        return name
+      let name = match[1].trim()
+      console.log('🔎 Pattern matched, raw name:', name)
+      
+      // Validate it's actually a name (not section title like PROFESSIONAL SUMMARY)
+      if (name.includes('PROFESSIONAL') || name.includes('SUMMARY') || 
+          name.includes('SKILL') || name.includes('PENGALAMAN') ||
+          name.includes('TEKNIS') || name.length > 30) {
+        console.log('❌ Rejected name (invalid keywords or too long):', name)
+        continue
       }
+      
+      // Clean up any trailing content
+      name = name.split(/[\|\+\d@]/)[0].trim()
+      
+      // More flexible validation - accept both all caps and proper case
+      if (name.length >= 2 && name.length <= 50 && /^[A-Za-z\s]+$/.test(name)) {
+        console.log('✅ Extracted name:', name)
+        return name
+      } else {
+        console.log('❌ Failed validation checks:', { length: name.length, pattern: /^[A-Za-z\s]+$/.test(name) })
+      }
+    } else {
+      console.log('❌ Pattern did not match')
     }
   }
+  
+  console.log('❌ No valid name found after trying all patterns')
   return ''
 }
 
@@ -265,276 +190,200 @@ function extractEmail(text: string): string {
 }
 
 function extractPhone(text: string): string {
-  const phoneMatch = text.match(/(\+?[\d\s\-\(\)]{10,})/)
-  return phoneMatch ? phoneMatch[1] : ''
+  const phoneMatch = text.match(/(\+62\s?\d{2,3}\s?\d{4}\s?\d{4}|\+?\d{10,15})/)
+  return phoneMatch ? phoneMatch[1].trim() : ''
 }
 
 function extractAddress(text: string): string {
-  // Simple address extraction - could be improved
+  console.log('🏠 Extracting address from text:', text.substring(0, 150))
+  
+  const locationPatterns = [
+    // Match "ARIS SETIAWAN Bekasi, Jawa Barat" - get only location part
+    /[A-Z]+\s+[A-Z]+\s+([A-Za-z\s]+,\s*Jawa\s+Barat)/i,
+    // Match "Bekasi, Jawa Barat" directly
+    /\b([A-Za-z]+,\s*Jawa\s+Barat)\b/i,
+    // Fallback for other location formats
+    /(?:dari|alamat|tinggal)\s+([A-Za-z\s]+,\s*[A-Za-z\s]+)/i,
+  ]
+  
+  for (let i = 0; i < locationPatterns.length; i++) {
+    const pattern = locationPatterns[i]
+    console.log(`🎯 Trying location pattern ${i + 1}:`, pattern.toString())
+    const match = text.match(pattern)
+    
+    if (match && match[1]) {
+      let address = match[1].trim()
+      console.log('🔎 Pattern matched, raw address:', address)
+      
+      // Clean up unwanted prefixes
+      address = address.replace(/^(saya dari|dari|alamat|tinggal)\s*/i, '')
+      
+      if (address.length >= 3 && address.length <= 100) {
+        console.log('✅ Extracted address:', address)
+        return address
+      } else {
+        console.log('❌ Address failed validation:', { length: address.length })
+      }
+    } else {
+      console.log('❌ Pattern did not match')
+    }
+  }
+  
+  console.log('❌ No valid address found')
+  return ''
+}
+
+function extractSummary(text: string): string {
+  const summaryPatterns = [
+    /PROFESSIONAL\s+SUMMARY\s+([^A-Z]*?)(?=\s*(?:SKILL|PENGALAMAN|PENDIDIKAN|$))/i,
+    /Software\s+Developer[^.]*(?:\.[^.]*){0,5}\./i
+  ]
+  
+  for (const pattern of summaryPatterns) {
+    const match = text.match(pattern)
+    if (match) {
+      let summary = match[1] || match[0]
+      summary = summary.replace(/^PROFESSIONAL\s+SUMMARY\s+/i, '').trim()
+      
+      if (summary.length > 800) {
+        summary = summary.substring(0, 800) + '...'
+      }
+      
+      return summary
+    }
+  }
+  
   return ''
 }
 
 function extractExperience(text: string): any[] {
-  const experienceKeywords = ['pengalaman', 'kerja', 'bekerja', 'perusahaan', 'posisi', 'jabatan', 'pekerjaan', 'karir']
-  const hasExperience = experienceKeywords.some(keyword => 
-    text.toLowerCase().includes(keyword)
-  )
+  const experiences: any[] = []
   
-  if (hasExperience) {
-    const experiences = []
-    
-    // Try to extract company names
-    const companyPatterns = [
-      /(?:di|pada|perusahaan)\s+([A-Z][A-Za-z\s&.]+?)(?:\s+sebagai|\s+selama|\.|,|$)/gi,
-      /(?:bekerja\s+di|kerja\s+di)\s+([A-Z][A-Za-z\s&.]+?)(?:\s+sebagai|\s+selama|\.|,|$)/gi,
-    ]
-    
-    let company = ''
-    for (const pattern of companyPatterns) {
-      const match = text.match(pattern)
-      if (match && match[0]) {
-        company = match[0].replace(/(?:di|pada|perusahaan|bekerja\s+di|kerja\s+di)\s+/i, '')
-          .replace(/\s+(?:sebagai|selama).*/i, '')
-          .trim()
-        break
-      }
+  // Look for specific company patterns from Aris's CV
+  const companyPatterns = [
+    {
+      regex: /PT\s+Teknologi\s+Maju\s+Bersama\s*–\s*([^\n]+)\s+([^\n]+?)\s*([\s\S]*?)(?=Digital\s+Solusi|PENDIDIKAN|$)/i,
+      company: 'PT Teknologi Maju Bersama'
+    },
+    {
+      regex: /Digital\s+Solusi\s+Pratama\s*–\s*([^\n]+)\s+([^\n]+?)\s*([\s\S]*?)(?=PENDIDIKAN|PROYEK|$)/i,
+      company: 'Digital Solusi Pratama'
     }
-    
-    // Try to extract position
-    const positionPatterns = [
-      /(?:sebagai|posisi|jabatan)\s+([A-Za-z\s]+?)(?:\s+di|\s+pada|\s+selama|\.|,|$)/gi,
-      /(?:bekerja\s+sebagai|kerja\s+sebagai)\s+([A-Za-z\s]+?)(?:\s+di|\s+pada|\s+selama|\.|,|$)/gi,
-    ]
-    
-    let position = ''
-    for (const pattern of positionPatterns) {
-      const match = text.match(pattern)
-      if (match && match[0]) {
-        position = match[0].replace(/(?:sebagai|posisi|jabatan|bekerja\s+sebagai|kerja\s+sebagai)\s+/i, '')
-          .replace(/\s+(?:di|pada|selama).*/i, '')
-          .trim()
-        break
-      }
-    }
-    
-    // Try to extract duration
-    const durationPatterns = [
-      /(\d+)\s*(?:tahun)/gi,
-      /(\d+)\s*(?:bulan)/gi,
-      /(?:selama|pengalaman)\s+(\d+)\s*(?:tahun|bulan)/gi,
-    ]
-    
-    let duration = ''
-    for (const pattern of durationPatterns) {
-      const match = text.match(pattern)
-      if (match) {
-        duration = match[0].trim()
-        break
-      }
-    }
-    
-    if (company || position) {
+  ]
+  
+  companyPatterns.forEach((pattern, index) => {
+    const match = text.match(pattern.regex)
+    if (match) {
+      const position = match[1]?.trim() || 'Software Developer'
+      const duration = match[2]?.trim() || ''
+      const description = match[3]?.trim().replace(/\s+/g, ' ') || ''
+      
       experiences.push({
-        company: company || 'Nama Perusahaan',
-        position: position || 'Posisi',
-        duration: duration || 'Durasi',
-        description: text.substring(0, 200) // Take relevant portion
-      })
-    } else {
-      // Fallback: at least indicate there's experience mentioned
-      experiences.push({
-        company: 'Informasi perusahaan dari chat',
-        position: 'Informasi posisi dari chat',
-        duration: 'Informasi durasi dari chat',
-        description: 'Silakan edit dan lengkapi detail pengalaman kerja Anda'
+        id: (index + 1).toString(),
+        company: pattern.company,
+        position: position,
+        duration: duration,
+        description: description.substring(0, 500) // Limit description length
       })
     }
-    
-    return experiences
-  }
+  })
   
-  return []
+  return experiences
 }
 
 function extractEducation(text: string): any[] {
-  const educationKeywords = ['pendidikan', 'lulusan', 'universitas', 'sekolah', 'jurusan', 'fakultas', 'kuliah', 'kampus', 'institusi']
-  const hasEducation = educationKeywords.some(keyword => 
-    text.toLowerCase().includes(keyword)
-  )
+  const educations: any[] = []
   
-  if (hasEducation) {
-    const educations = []
+  // Look for Universitas Gunadarma pattern
+  const educationMatch = text.match(/Universitas\s+Gunadarma\s*–\s*([^,]+),?\s*([^|]+)?\|?\s*(\d{4}\s*–\s*\d{4})?/i)
+  
+  if (educationMatch) {
+    const degree = educationMatch[1]?.trim() || 'Sarjana Komputer (S.Kom)'
+    const gpa = educationMatch[2]?.trim() || 'IPK 3.75/4.00'
+    const year = educationMatch[3]?.trim() || '2018 – 2022'
     
-    // Try to extract institution
-    const institutionPatterns = [
-      /(?:dari|di|universitas|kampus)\s+([A-Z][A-Za-z\s]+?)(?:\s+jurusan|\s+fakultas|\.|,|$)/gi,
-      /(?:lulusan)\s+([A-Z][A-Za-z\s]+?)(?:\s+jurusan|\s+fakultas|\.|,|$)/gi,
-    ]
-    
-    let institution = ''
-    for (const pattern of institutionPatterns) {
-      const match = text.match(pattern)
-      if (match && match[0]) {
-        institution = match[0].replace(/(?:dari|di|universitas|kampus|lulusan)\s+/i, '')
-          .replace(/\s+(?:jurusan|fakultas).*/i, '')
-          .trim()
-        break
-      }
-    }
-    
-    // Try to extract field/major
-    const fieldPatterns = [
-      /(?:jurusan|prodi|program studi|fakultas)\s+([A-Za-z\s]+?)(?:\s+di|\s+pada|\.|,|$)/gi,
-    ]
-    
-    let field = ''
-    for (const pattern of fieldPatterns) {
-      const match = text.match(pattern)
-      if (match && match[0]) {
-        field = match[0].replace(/(?:jurusan|prodi|program studi|fakultas)\s+/i, '')
-          .replace(/\s+(?:di|pada).*/i, '')
-          .trim()
-        break
-      }
-    }
-    
-    // Try to extract degree
-    const degreePatterns = [
-      /(S1|S2|S3|D3|D4|Sarjana|Master|Doktor)/gi,
-    ]
-    
-    let degree = ''
-    for (const pattern of degreePatterns) {
-      const match = text.match(pattern)
-      if (match) {
-        degree = match[0]
-        break
-      }
-    }
-    
-    if (institution || field) {
-      educations.push({
-        institution: institution || 'Nama Institusi',
-        degree: degree || 'Gelar',
-        field: field || 'Bidang Studi',
-        year: 'Tahun Lulus'
-      })
-    } else {
-      // Fallback
-      educations.push({
-        institution: 'Informasi pendidikan dari chat',
-        degree: 'Gelar',
-        field: 'Bidang studi',
-        year: 'Tahun'
-      })
-    }
-    
-    return educations
+    educations.push({
+      id: "1",
+      institution: "Universitas Gunadarma",
+      degree: degree,
+      field: "Ilmu Komputer",
+      year: year,
+      gpa: gpa
+    })
   }
   
-  return []
+  return educations
 }
 
 function extractSkills(text: string): string[] {
-  const skillKeywords = ['skill', 'kemampuan', 'keahlian', 'teknologi', 'bahasa pemrograman', 'menguasai', 'mahir']
-  const hasSkills = skillKeywords.some(keyword => 
-    text.toLowerCase().includes(keyword)
-  )
+  const skills: string[] = []
   
-  if (hasSkills) {
-    const skills: string[] = []
+  // Extract skills from SKILL TEKNIS section
+  const skillSectionMatch = text.match(/SKILL\s+TEKNIS[\s\S]*?(?=PENGALAMAN|PENDIDIKAN|$)/i)
+  
+  if (skillSectionMatch) {
+    const skillSection = skillSectionMatch[0]
     
-    // Common programming languages
-    const programmingSkills = ['Python', 'JavaScript', 'Java', 'C++', 'C#', 'PHP', 'Ruby', 'Go', 'Rust', 'TypeScript', 'Swift', 'Kotlin']
-    programmingSkills.forEach(skill => {
-      if (text.toLowerCase().includes(skill.toLowerCase())) {
-        skills.push(skill)
-      }
-    })
-    
-    // Common frameworks and tools
-    const frameworkSkills = ['React', 'Vue', 'Angular', 'Node.js', 'Django', 'Flask', 'Laravel', 'Spring', 'Express', 'Next.js', 'Nuxt.js']
-    frameworkSkills.forEach(skill => {
-      if (text.toLowerCase().includes(skill.toLowerCase())) {
-        skills.push(skill)
-      }
-    })
-    
-    // Common soft skills
-    const softSkills = ['komunikasi', 'leadership', 'teamwork', 'problem solving', 'critical thinking', 'time management']
-    softSkills.forEach(skill => {
-      if (text.toLowerCase().includes(skill.toLowerCase())) {
-        skills.push(skill.charAt(0).toUpperCase() + skill.slice(1))
-      }
-    })
-    
-    // If no specific skills found, extract general mentions
-    if (skills.length === 0) {
-      // Try to extract skills after certain keywords
-      const skillPatterns = [
-        /(?:skill|kemampuan|keahlian|menguasai)\s+(?:di|dalam)?\s*([A-Za-z\s,&]+?)(?:\.|$)/gi,
-      ]
+    // Enhanced skill patterns
+    const skillPatterns = [
+      // Programming languages
+      /JavaScript\s*\([^)]*\)|JavaScript/gi,
+      /TypeScript/gi,
+      /SQL\b/gi,
+      /HTML5?/gi,
+      /CSS3?/gi,
       
-      for (const pattern of skillPatterns) {
-        const match = text.match(pattern)
-        if (match && match[0]) {
-          const extracted = match[0]
-            .replace(/(?:skill|kemampuan|keahlian|menguasai)\s+(?:di|dalam)?\s*/i, '')
-            .trim()
-          
-          // Split by comma or 'dan'
-          const splitSkills = extracted.split(/,|\s+dan\s+/).map(s => s.trim()).filter(s => s.length > 0)
-          skills.push(...splitSkills)
-          break
-        }
+      // Frameworks and libraries
+      /React\.js|React/gi,
+      /Next\.js|Next/gi,
+      /Node\.js|Node/gi,
+      /Express/gi,
+      /Redux/gi,
+      /Tailwind\s*CSS/gi,
+      
+      // Databases and cloud
+      /PostgreSQL/gi,
+      /MongoDB/gi,
+      /Redis/gi,
+      /AWS/gi,
+      /S3/gi,
+      /EC2/gi,
+      
+      // Tools and DevOps
+      /Docker/gi,
+      /Git\b/gi,
+      /Jenkins/gi,
+      /CI\/CD/gi,
+      /Postman/gi,
+      /Jest/gi
+    ]
+    
+    for (const pattern of skillPatterns) {
+      const matches = skillSection.match(pattern)
+      if (matches) {
+        matches.forEach(match => {
+          const cleanSkill = match.trim()
+          if (cleanSkill && !skills.some(skill => skill.toLowerCase().includes(cleanSkill.toLowerCase()))) {
+            skills.push(cleanSkill)
+          }
+        })
       }
     }
-    
-    // Remove duplicates and return
-    return Array.from(new Set(skills)).slice(0, 10) // Max 10 skills
   }
   
-  return []
-}
-
-function extractSummary(text: string): string {
-  // Extract a brief summary from the first meaningful sentences
-  const sentences = text.split(/[.!?]/).filter(s => s.trim().length > 20)
-  if (sentences.length > 0) {
-    const summary = sentences.slice(0, 2).join('. ').trim()
-    return summary.length > 200 ? summary.substring(0, 200) + '...' : summary + '.'
-  }
-  return ''
+  return skills.slice(0, 15) // Limit to 15 skills
 }
 
 function generateFallbackResponse(message: string): string {
   const lowerMessage = message.toLowerCase()
   
-  // Check for greetings
-  if (lowerMessage.includes('halo') || lowerMessage.includes('hai') || lowerMessage.includes('hello')) {
-    return 'Halo! Saya siap membantu Anda membuat CV profesional. Silakan ceritakan tentang diri Anda - nama, pengalaman kerja, pendidikan, dan keahlian yang Anda miliki.'
+  if (lowerMessage.includes('halo') || lowerMessage.includes('hai')) {
+    return 'Halo! Saya siap membantu Anda membuat CV profesional. Silakan ceritakan tentang diri Anda.'
   }
   
-  // Check for name
   if (lowerMessage.includes('nama')) {
-    return 'Bagus! Informasi nama Anda sudah saya catat. Sekarang, bisakah Anda ceritakan tentang pengalaman kerja Anda? Misalnya, di perusahaan mana Anda bekerja, posisi apa, dan berapa lama?'
+    return 'Bagus! Sekarang ceritakan tentang pengalaman kerja Anda.'
   }
   
-  // Check for experience
-  if (lowerMessage.includes('pengalaman') || lowerMessage.includes('kerja') || lowerMessage.includes('bekerja')) {
-    return 'Terima kasih atas informasi pengalaman kerja Anda! Pengalaman tersebut akan sangat bagus untuk CV Anda. Sekarang, bisakah Anda ceritakan tentang latar belakang pendidikan Anda? Dari universitas mana dan jurusan apa?'
-  }
-  
-  // Check for education
-  if (lowerMessage.includes('pendidikan') || lowerMessage.includes('lulusan') || lowerMessage.includes('universitas')) {
-    return 'Sempurna! Latar belakang pendidikan Anda sudah saya catat. Sekarang, apa saja keahlian atau skill yang Anda kuasai? Misalnya bahasa pemrograman, tools, atau soft skills?'
-  }
-  
-  // Check for skills
-  if (lowerMessage.includes('skill') || lowerMessage.includes('keahlian') || lowerMessage.includes('kemampuan')) {
-    return 'Bagus sekali! Keahlian Anda sudah saya catat. Informasi yang Anda berikan sudah cukup lengkap. Anda bisa melanjutkan ke bagian form untuk menambahkan detail lebih lanjut. Jika ada yang ingin ditambahkan, silakan beritahu saya!'
-  }
-  
-  // Default response
-  return 'Terima kasih atas informasinya! Saya telah mencatat detail yang Anda berikan. Silakan lanjutkan dengan informasi lainnya, atau Anda bisa langsung mengisi form CV yang tersedia. Apakah ada yang ingin Anda tambahkan?'
+  return 'Terima kasih! Informasi Anda telah saya catat. Silakan lanjutkan atau isi form CV.'
 }

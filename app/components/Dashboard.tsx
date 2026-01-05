@@ -13,7 +13,6 @@ import {
   Plus,
   Eye,
   Edit,
-  Edit3,
   Sparkles,
   Save,
   Check,
@@ -24,16 +23,14 @@ import AIChat from './AIChat'
 import CVBuilder from './CVBuilder'
 import TemplateSelector from './TemplateSelector'
 import CVPreview from './CVPreview'
-import ProfessionalPhotoEnhancer from './ProfessionalPhotoEnhancer'
-import ProfessionalPhotoEditor from './ProfessionalPhotoEditor'
-import CVSelector from './CVSelector'
+import SimplePhotoUploader from './SimplePhotoUploader'
 import CVHistoryPanel from './CVHistoryPanel'
 // import PWAInstallPrompt from './PWAInstallPrompt'
 // import PWAStatus from './PWAStatus'
 // import ServiceWorkerRegistration from './ServiceWorkerRegistration'
 import { useCVData } from '@/hooks/useCVData'
 
-type TabType = 'chat' | 'builder' | 'templates' | 'photo' | 'edit' | 'preview'
+type TabType = 'chat' | 'builder' | 'templates' | 'photo' | 'preview'
 
 interface DashboardProps {
   onLogout?: () => void
@@ -49,7 +46,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }
     return 'chat'
   })
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+  // Initialize selectedTemplate from localStorage
+  const [selectedTemplate, setSelectedTemplate] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const savedTemplate = localStorage.getItem('selectedTemplate')
+      console.log('🎨 Loading template from localStorage:', savedTemplate)
+      return savedTemplate || 'modern'
+    }
+    return 'modern'
+  })
   const [showHistory, setShowHistory] = useState(false)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
@@ -66,27 +71,119 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     deleteCV,
     autoSave,
     fetchCV,
+    fetchAllCVs,
   } = useCVData()
   
+  // Load data from localStorage on mount and when localStorage changes
+  useEffect(() => {
+    const loadDataFromLocalStorage = () => {
+      console.log('🔄 Loading CV data from localStorage')
+      const savedCV = localStorage.getItem('currentCV')
+      if (savedCV) {
+        try {
+          const parsedCV = JSON.parse(savedCV)
+          console.log('📦 Loaded CV from localStorage:', parsedCV.personalInfo?.name || 'No name')
+          console.log('📸 Photo in loaded CV:', parsedCV.personalInfo?.photo ? 'Yes' : 'No')
+          console.log('🎨 Template in loaded CV:', parsedCV.template?.id || 'No template')
+          setCVData(parsedCV)
+          
+          // Set template from loaded CV data
+          if (parsedCV.template?.id) {
+            setSelectedTemplate(parsedCV.template.id)
+            localStorage.setItem('selectedTemplate', parsedCV.template.id)
+          }
+        } catch (error) {
+          console.error('❌ Error parsing localStorage CV:', error)
+        }
+      } else {
+        // No saved CV, load template from localStorage if available
+        const savedTemplate = localStorage.getItem('selectedTemplate')
+        if (savedTemplate) {
+          console.log('🎨 Loading saved template:', savedTemplate)
+          setSelectedTemplate(savedTemplate)
+        }
+      }
+    }
+
+    // Load on mount
+    loadDataFromLocalStorage()
+
+    // Listen for localStorage changes (for when data is restored)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'currentCV') {
+        console.log('🔔 localStorage currentCV changed, reloading...')
+        loadDataFromLocalStorage()
+      }
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+
+    // Also listen for manual localStorage updates (same-tab changes)
+    const originalSetItem = localStorage.setItem
+    localStorage.setItem = function(key, value) {
+      originalSetItem.apply(this, [key, value])
+      if (key === 'currentCV') {
+        console.log('🔔 localStorage currentCV manually updated')
+        // Small delay to ensure the data is set
+        setTimeout(loadDataFromLocalStorage, 10)
+      }
+    }
+
+    // Also listen for data restoration events
+    const handleDataRestored = (e: any) => {
+      console.log('🔔 Data restoration event received')
+      setTimeout(() => {
+        loadDataFromLocalStorage()
+        
+        // Also sync template
+        const savedTemplate = localStorage.getItem('selectedTemplate')
+        if (savedTemplate) {
+          setSelectedTemplate(savedTemplate)
+        }
+      }, 50)
+    }
+
+    window.addEventListener('dataRestored', handleDataRestored)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('dataRestored', handleDataRestored)
+      localStorage.setItem = originalSetItem
+    }
+  }, [setCVData])
+
   // Load template from CV data when CV changes
   useEffect(() => {
     try {
       if (cvData?.template?.id) {
+        console.log('🎨 Loading template from CV data:', cvData.template.id)
         setSelectedTemplate(cvData.template.id)
+        localStorage.setItem('selectedTemplate', cvData.template.id)
       } else if (cvData && !cvData.template) {
         // Set default template if CV exists but has no template
+        console.log('🎨 Setting default template: modern')
         setSelectedTemplate('modern')
+        localStorage.setItem('selectedTemplate', 'modern')
       }
     } catch (error) {
       console.error('Error loading template:', error)
       setSelectedTemplate('modern') // Fallback to modern
+      localStorage.setItem('selectedTemplate', 'modern')
     }
-  }, [cvData?._id, cvData?.template?.id])
+  }, [cvData])
 
   // Save active tab to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('activeTab', activeTab)
   }, [activeTab])
+
+  // Save selected template to localStorage when it changes
+  useEffect(() => {
+    if (selectedTemplate) {
+      localStorage.setItem('selectedTemplate', selectedTemplate)
+      console.log('🎨 Template saved to localStorage:', selectedTemplate)
+    }
+  }, [selectedTemplate])
 
   // Cleanup auto-save timeout on unmount
   useEffect(() => {
@@ -112,7 +209,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     { id: 'chat', label: 'Asisten AI', icon: MessageSquare },
     { id: 'builder', label: 'Pembuat CV', icon: FileText },
     { id: 'photo', label: 'Foto Profesional', icon: Camera },
-    { id: 'edit', label: 'Edit Foto Pro', icon: Edit3 },
     { id: 'templates', label: 'Template', icon: Eye },
     { id: 'preview', label: 'Pratinjau', icon: Download },
   ]
@@ -162,7 +258,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       title: cvData?.title || 'My CV',
       personalInfo: {
         ...(cvData?.personalInfo || {}),
-        ...(data?.personalInfo || {})
+        ...(data?.personalInfo || {}),
+        // Preserve photo from existing data if new data doesn't have photo
+        photo: data?.personalInfo?.photo || cvData?.personalInfo?.photo
       },
       experiences: mergedExperiences,
       education: mergedEducation,
@@ -199,8 +297,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           photo: photoDataUrl
         }
       }
+      
       setCVData(updatedCVData)
       localStorage.setItem('currentCV', JSON.stringify(updatedCVData))
+      
       toast.success('Foto berhasil disimpan ke CV')
       
       // Auto-save with timeout
@@ -210,25 +310,41 @@ export default function Dashboard({ onLogout }: DashboardProps) {
       autoSaveTimeoutRef.current = setTimeout(() => {
         autoSave(updatedCVData)
       }, 1000)
+    } else {
+      console.log('❌ No CV data available to attach photo')
     }
   }
 
   const handleTemplateSelect = (template: string) => {
-    console.log('Template selected:', template)
-    setSelectedTemplate(template)
+    console.log('🎯 Template selected:', template)
     
-    // IMPORTANT: Preserve ALL existing data, only update template
+    // Update state immediately
+    setSelectedTemplate(template)
+    localStorage.setItem('selectedTemplate', template)
+    
+    // Update CV data dengan template baru
     if (cvData) {
       const updatedData = {
-        ...cvData, // Keep ALL existing data
+        ...cvData,
         template: {
           id: template,
           name: template.charAt(0).toUpperCase() + template.slice(1)
         }
       }
-      handleCVDataUpdate(updatedData)
+      
+      console.log('🔄 Updating CV data with new template:', updatedData)
+      setCVData(updatedData)
+      localStorage.setItem('currentCV', JSON.stringify(updatedData))
+      
+      // Auto-save dengan delay
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+      }
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        autoSave(updatedData)
+      }, 500)
     } else {
-      // If no data yet, create minimal structure
+      // Create new CV with template
       const newData = {
         title: 'My CV',
         personalInfo: {},
@@ -240,13 +356,15 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           name: template.charAt(0).toUpperCase() + template.slice(1)
         }
       }
+      
+      console.log('🆕 Creating new CV with template:', newData)
       setCVData(newData)
       localStorage.setItem('currentCV', JSON.stringify(newData))
     }
     
-    // Redirect to Preview to see the result
+    // Redirect to Preview
     setActiveTab('preview')
-    toast.success(`Template "${template}" dipilih! Lihat hasilnya di Preview.`)
+    toast.success(`Template "${template}" berhasil dipilih!`)
   }
 
   return (
@@ -260,8 +378,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                   <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900 hidden xs:block">Pembuat CV SmartGen</h1>
-                <h1 className="text-lg font-bold text-gray-900 block xs:hidden">Pembuat CV</h1>
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 hidden xs:block">SmartGen CV Maker</h1>
+                <h1 className="text-lg font-bold text-gray-900 block xs:hidden">SmartGen CV</h1>
               </div>
             </div>
             
@@ -331,67 +449,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
               })}
             </nav>
             
-            {/* CV Selector & History - Show on builder tab */}
-            {session?.user?.email && activeTab === 'builder' && (
-              <div className="flex items-center space-x-3">
-                {/* History Button */}
-                {cvData?._id && (
-                  <button
-                    onClick={() => setShowHistory(true)}
-                    className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                    title="View version history"
-                  >
-                    <History className="w-4 h-4 text-gray-600" />
-                    <span className="text-sm font-medium text-gray-700">History</span>
-                  </button>
-                )}
-                
-                {/* CV Selector */}
-                <CVSelector
-                  cvs={allCVs}
-                  currentCV={cvData}
-                  onSelect={(cv) => {
-                    setCVData(cv as any)
-                    localStorage.setItem('currentCV', JSON.stringify(cv))
-                  }}
-                  onCreateNew={async () => {
-                    const newCV = await createCV({
-                      title: `CV - ${new Date().toLocaleDateString()}`,
-                      personalInfo: {
-                        fullName: session?.user?.name || '',
-                        email: session?.user?.email || '',
-                      },
-                      experiences: [],
-                      education: [],
-                      skills: [],
-                      template: {
-                        id: 'modern',
-                        name: 'Modern',
-                      },
-                    })
-                    if (newCV) {
-                      setCVData(newCV)
-                      localStorage.setItem('currentCV', JSON.stringify(newCV))
-                    }
-                  }}
-                  onDelete={async (id) => {
-                    const success = await deleteCV(id)
-                    if (success && cvData?._id === id) {
-                      // If deleted current CV, load first available CV or null
-                      const remainingCVs = allCVs.filter(cv => cv._id !== id)
-                      if (remainingCVs.length > 0) {
-                        setCVData(remainingCVs[0])
-                        localStorage.setItem('currentCV', JSON.stringify(remainingCVs[0]))
-                      } else {
-                        setCVData(null)
-                        localStorage.removeItem('currentCV')
-                      }
-                    }
-                  }}
-                  isLoading={isLoading}
-                />
-              </div>
-            )}
+            {/* Empty space for cleaner navigation */}
+            <div></div>
           </div>
         </div>
       </div>
@@ -417,41 +476,54 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           )}
 
           {activeTab === 'photo' && (
-            <ProfessionalPhotoEnhancer 
-              onPhotoGenerated={(imageUrl: string) => {
-                const updatedData = {
-                  ...cvData,
-                  personalInfo: {
-                    ...(cvData?.personalInfo || {}),
-                    photo: imageUrl
+            <SimplePhotoUploader 
+              onPhotoComplete={(imageUrl: string) => {
+                if (cvData) {
+                  const updatedData = {
+                    ...cvData,
+                    personalInfo: {
+                      ...(cvData.personalInfo || {}),
+                      photo: imageUrl
+                    }
                   }
+                  
+                  setCVData(updatedData)
+                  localStorage.setItem('currentCV', JSON.stringify(updatedData))
+                  
+                  // Auto-save with timeout
+                  if (autoSaveTimeoutRef.current) {
+                    clearTimeout(autoSaveTimeoutRef.current)
+                  }
+                  autoSaveTimeoutRef.current = setTimeout(() => {
+                    autoSave(updatedData)
+                  }, 1000)
+                } else {
+                  // Create new CV if none exists
+                  const newCVData = {
+                    title: 'My CV',
+                    personalInfo: {
+                      photo: imageUrl
+                    },
+                    experiences: [],
+                    education: [],
+                    skills: [],
+                    template: { id: 'modern', name: 'Modern' }
+                  }
+                  setCVData(newCVData)
+                  localStorage.setItem('currentCV', JSON.stringify(newCVData))
                 }
-                handleCVDataUpdate(updatedData)
+                
                 toast.success('Foto profesional berhasil ditambahkan ke CV!')
               }}
               className="max-w-none"
             />
           )}
 
-          {activeTab === 'edit' && (
-            <ProfessionalPhotoEditor 
-              onPhotoEdited={(imageUrl: string) => {
-                const updatedData = {
-                  ...cvData,
-                  personalInfo: {
-                    ...(cvData?.personalInfo || {}),
-                    photo: imageUrl
-                  }
-                }
-                handleCVDataUpdate(updatedData)
-                toast.success('Foto profesional berhasil diedit dan ditambahkan ke CV!')
-              }}
-              className="max-w-none"
-            />
-          )}
-          
           {activeTab === 'templates' && (
-            <TemplateSelector onTemplateSelect={handleTemplateSelect} />
+            <TemplateSelector 
+              onTemplateSelect={handleTemplateSelect} 
+              selectedTemplate={selectedTemplate}
+            />
           )}
           
           {activeTab === 'preview' && (
